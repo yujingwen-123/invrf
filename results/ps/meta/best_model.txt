@@ -1,0 +1,20 @@
+Station: ps
+Search minimum misfit: 43.173492
+Appraisal temperature: 2.758437
+Appraisal n_resample: 75000
+Appraisal n_walkers: 15
+Appraisal raw samples: 75000
+Appraisal valid samples: 54747
+H_sed: 5.037679
+sed_ratio1: 0.145124
+Vs_sed1: 1.022272
+Vs_sed2: 1.822322
+VpVs_sed: 1.935974
+H_uc: 28.885785
+Vs_uc: 3.716616
+VpVs_uc: 1.850000
+H_moho: 46.107705
+Vs_lc: 3.958207
+VpVs_lc: 1.734137
+Vs_mantle: 4.608455
+VpVs_mantle: 1.807124
