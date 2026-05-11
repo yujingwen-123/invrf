@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
-from .misfit import combined_misfit
+from .misfit import misfit_value
 from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, validate_params
 from .pbin import PBin
 
@@ -78,10 +78,18 @@ class JointRFObjective:
             ("H_sed", "H_sed_center", "H_sed_sigma"),
             ("Vs_mantle", "Vs_mantle_center", "Vs_mantle_sigma"),
             ("VpVs_mantle", "VpVs_mantle_center", "VpVs_mantle_sigma"),
+            ("H_moho", "H_crust_center", "H_crust_sigma"),
+            ("VpVs_sed", "K_sed_center", "K_sed_sigma"),
         ]:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (pd[name] - float(pri[center_key])) / float(pri[sigma_key])
                 penalty += z**2
+        if all(k in pri for k in ("K_crust_center", "K_crust_sigma")) and float(pri.get("K_crust_sigma", 0)) > 0:
+            h_uc = max(pd["H_uc"], 1e-6)
+            h_lc = max(pd["H_moho"] - pd["H_sed"] - pd["H_uc"], 1e-6)
+            k_crust = (pd["VpVs_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / (pd["H_moho"] + 1e-6)
+            z = (k_crust - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
+            penalty += z**2
         return float(self.cfg["weights"].get("prior", 1.0)) * penalty
 
     def evaluate_single(self, params: np.ndarray) -> tuple[float, list[np.ndarray]]:
@@ -96,7 +104,7 @@ class JointRFObjective:
             for b in self.bins:
                 syn = synthetic_rf_for_rayp(params, b.p_center, self.time, self.cfg)
                 synthetics.append(syn)
-                total += combined_misfit(b.stack, syn, w_cc, w_nrmse) * float(b.n_events)
+                total += misfit_value(b.stack, syn, self.cfg, w_cc, w_nrmse) * float(b.n_events)
         except Exception:
             return 1.0e9, []
         return float(total), synthetics
