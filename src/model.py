@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -107,6 +107,46 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
     return True, penalty
 
 
+
+def _segment_grid(z0: float, z1: float, dz: float) -> np.ndarray:
+    if z1 <= z0:
+        return np.array([z0], dtype=float)
+    if dz <= 0:
+        return np.array([z0, z1], dtype=float)
+    pts = [float(z0)]
+    z = float(z0)
+    while z + dz < z1:
+        z += dz
+        pts.append(float(z))
+    if pts[-1] < z1:
+        pts.append(float(z1))
+    return np.array(pts, dtype=float)
+
+
+def _build_interpolated_layers(
+    depth_bounds: np.ndarray,
+    vs_nodes: np.ndarray,
+    vpvs_nodes: np.ndarray,
+    sed_dz: float,
+    crust_dz: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    h_sed = float(depth_bounds[2])
+    h_moho = float(depth_bounds[-1])
+
+    sed_grid = _segment_grid(0.0, h_sed, sed_dz)
+    crust_grid = _segment_grid(h_sed, h_moho, crust_dz)
+
+    z_grid = np.concatenate([sed_grid, crust_grid[1:]])
+    z_grid = np.unique(np.clip(z_grid, 0.0, h_moho))
+    if z_grid[-1] < h_moho:
+        z_grid = np.append(z_grid, h_moho)
+
+    z_nodes = np.asarray(depth_bounds[:-1], dtype=float)
+    vs = np.interp(z_grid[:-1], z_nodes, vs_nodes)
+    vpvs = np.interp(z_grid[:-1], z_nodes, vpvs_nodes)
+    return z_grid[1:], vs, vpvs
+
+
 def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
     valid, penalty = validate_params(params, cfg)
     if not valid:
@@ -115,35 +155,18 @@ def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
     p = params_to_dict(params)
     geom = params_to_geometry(params, cfg)
 
-    interfaces = np.array(
-        [
-            geom.h_sed1,
-            geom.h_sed1 + geom.h_sed2,
-            geom.h_sed1 + geom.h_sed2 + geom.h_uc,
-            geom.H_moho,
-        ],
+    depth_bounds = np.array(
+        [0.0, geom.h_sed1, geom.h_sed1 + geom.h_sed2, geom.h_sed1 + geom.h_sed2 + geom.h_uc, geom.H_moho],
         dtype=float,
     )
-    vs = np.array(
-        [
-            p["Vs_sed1"],
-            p["Vs_sed2"],
-            p["Vs_uc"],
-            p["Vs_lc"],
-            p["Vs_mantle"],
-        ],
-        dtype=float,
-    )
-    vpvs = np.array(
-        [
-            p["VpVs_sed"],
-            p["VpVs_sed"],
-            p["VpVs_uc"],
-            p["VpVs_lc"],
-            p["VpVs_mantle"],
-        ],
-        dtype=float,
-    )
+    vs_nodes = np.array([p["Vs_sed1"], p["Vs_sed2"], p["Vs_uc"], p["Vs_lc"]], dtype=float)
+    vpvs_nodes = np.array([p["VpVs_sed"], p["VpVs_sed"], p["VpVs_uc"], p["VpVs_lc"]], dtype=float)
+    sed_dz = float(cfg.get("model", {}).get("sed_control_dz_km", 0.0))
+    crust_dz = float(cfg.get("model", {}).get("crust_control_dz_km", 0.0))
+    interfaces, vs_finite, vpvs_finite = _build_interpolated_layers(depth_bounds, vs_nodes, vpvs_nodes, sed_dz, crust_dz)
+
+    vs = np.concatenate([vs_finite, np.array([p["Vs_mantle"]], dtype=float)])
+    vpvs = np.concatenate([vpvs_finite, np.array([p["VpVs_mantle"]], dtype=float)])
     vp = vs * vpvs
     rho = vp2rho_brocher(vp)
     return VelocityModel(
@@ -157,12 +180,10 @@ def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
 
 def model_to_depth_grid(params: np.ndarray, cfg: Dict, z: np.ndarray) -> np.ndarray:
     vm = params_to_velocity_model(params, cfg)
-    g = vm.geometry
-    bounds = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, np.inf])
+    bounds = np.concatenate([np.array([0.0]), vm.interfaces_km, np.array([np.inf])])
     vs = vm.vs_km_s
     out = np.empty_like(z, dtype=float)
     for i in range(len(vs)):
         mask = (z >= bounds[i]) & (z < bounds[i + 1])
         out[mask] = vs[i]
-    out[z >= g.H_moho] = vs[-1]
     return out
