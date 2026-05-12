@@ -9,7 +9,7 @@ import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
 from .misfit import misfit_value
-from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, validate_params
+from .model import get_parameter_names, parameter_bounds, params_to_dict, validate_params
 from .pbin import PBin
 
 
@@ -70,19 +70,41 @@ class JointRFObjective:
         self.parallel_enabled = False
 
     def prior_penalty(self, params: np.ndarray) -> float:
-        pri = self.cfg["priors"]
-        pd = params_to_dict(params)
+        pri = self.cfg.get("priors", {})
+        if not bool(pri.get("enabled", True)):
+            return 0.0
+
+        pd = params_to_dict(params, self.cfg)
+        mode = str(self.cfg.get("model", {}).get("parameterization", "legacy")).lower()
+
+        if mode == "classic_nainvrf":
+            h_sed = pd["H_sed1"] + pd["H_sed2"]
+            h_moho = h_sed + pd["H_c1"] + pd["H_c2"] + pd["H_c3"]
+            k_sed = 0.5 * (pd["VpVs_sed1"] + pd["VpVs_sed2"])
+            k_crust = (
+                pd["VpVs_sed1"] * pd["H_sed1"] + pd["VpVs_sed2"] * pd["H_sed2"] +
+                pd["VpVs_c1"] * pd["H_c1"] + pd["VpVs_c2"] * pd["H_c2"] + pd["VpVs_c3"] * pd["H_c3"]
+            ) / max(h_moho, 1e-6)
+        else:
+            h_sed = pd["H_sed"]
+            h_moho = pd["H_moho"]
+            k_sed = pd["VpVs_sed"]
+            h_uc = max(pd["H_uc"], 1e-6)
+            h_lc = max(pd["H_moho"] - pd["H_sed"] - pd["H_uc"], 1e-6)
+            k_crust = (pd["VpVs_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / max(pd["H_moho"], 1e-6)
+
         penalty = 0.0
-        # Gaussian-style weak priors, expressed as squared z-score.
-        for name, center_key, sigma_key in [
-            ("H_sed", "H_sed_center", "H_sed_sigma"),
-            ("Vs_mantle", "Vs_mantle_center", "Vs_mantle_sigma"),
-            ("VpVs_mantle", "VpVs_mantle_center", "VpVs_mantle_sigma"),
-            ("H_moho", "H_crust_center", "H_crust_sigma"),
-            ("VpVs_sed", "K_sed_center", "K_sed_sigma"),
-        ]:
+        terms = [
+            (h_sed, "H_sed_center", "H_sed_sigma"),
+            (pd["Vs_mantle"], "Vs_mantle_center", "Vs_mantle_sigma"),
+            (pd["VpVs_mantle"], "VpVs_mantle_center", "VpVs_mantle_sigma"),
+            (h_moho, "H_crust_center", "H_crust_sigma"),
+            (k_sed, "K_sed_center", "K_sed_sigma"),
+            (k_crust, "K_crust_center", "K_crust_sigma"),
+        ]
+        for value, center_key, sigma_key in terms:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
-                z = (pd[name] - float(pri[center_key])) / float(pri[sigma_key])
+                z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
                 penalty += z**2
         if all(k in pri for k in ("K_crust_center", "K_crust_sigma")) and float(pri.get("K_crust_sigma", 0)) > 0:
             h_uc = max(pd["H_uc"], 1e-6)
@@ -155,6 +177,6 @@ def run_na(cfg: Dict, objective: JointRFObjective) -> SearchResult:
     order = np.argsort(misfits)
     models = models[order]
     misfits = misfits[order]
-    df = pd.DataFrame(models, columns=PARAMETER_NAMES)
+    df = pd.DataFrame(models, columns=get_parameter_names(cfg))
     df["misfit"] = misfits
     return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper)
