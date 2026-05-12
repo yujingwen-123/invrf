@@ -106,6 +106,12 @@ class JointRFObjective:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
                 penalty += z**2
+        if all(k in pri for k in ("K_crust_center", "K_crust_sigma")) and float(pri.get("K_crust_sigma", 0)) > 0:
+            h_uc = max(pd["H_uc"], 1e-6)
+            h_lc = max(pd["H_moho"] - pd["H_sed"] - pd["H_uc"], 1e-6)
+            k_crust = (pd["VpVs_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / (pd["H_moho"] + 1e-6)
+            z = (k_crust - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
+            penalty += z**2
         return float(self.cfg["weights"].get("prior", 1.0)) * penalty
 
     def evaluate_single(self, params: np.ndarray) -> tuple[float, list[np.ndarray]]:
