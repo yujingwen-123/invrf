@@ -37,6 +37,7 @@ stack_method = "mean"
 parameterization = "legacy"  # legacy | classic_nainvrf
 mantle_extra_depth = 80.0
 min_lower_crust_thickness = 5.0
+allow_low_velocity_layer = false  # false: enforce Vs increases with depth; true: allow LVZ
 plot_depth_max = 70.0
 plot_depth_dz = 0.25
 plot_vs_bins = 140
