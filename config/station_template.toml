@@ -34,19 +34,32 @@ min_events = 10
 stack_method = "mean"
 
 [model]
+parameterization = "legacy"  # legacy | classic_nainvrf
 mantle_extra_depth = 80.0
 min_lower_crust_thickness = 5.0
 plot_depth_max = 70.0
 plot_depth_dz = 0.25
 plot_vs_bins = 140
+sed_control_dz_km = 0.5
+crust_control_dz_km = 1.0
 
 [priors]
+enabled = true  # false: no prior constraint, only bounds
 H_sed_center = 1.5
 H_sed_sigma = 1.5
 Vs_mantle_center = 4.60
 Vs_mantle_sigma = 0.15
 VpVs_mantle_center = 1.78
 VpVs_mantle_sigma = 0.05
+K_sed_center = 2.20
+K_sed_sigma = 0.20
+H_crust_center = 36.0
+H_crust_sigma = 4.0
+K_crust_center = 1.75
+K_crust_sigma = 0.08
+
+[misfit]
+mode = "weighted_l2"  # weighted_l2 | rms+cc
 
 [weights]
 cc = 0.2
@@ -94,3 +107,23 @@ Vs_lc = [3.60, 4.50]
 VpVs_lc = [1.65, 1.90]
 Vs_mantle = [4.40, 4.90]
 VpVs_mantle = [1.75, 1.90]
+
+
+[bounds_classic_nainvrf]
+H_sed1=[0.00,2.00]
+H_sed2=[0.00,3.00]
+Vs_sed1=[1.75,3.00]
+Vs_sed2=[1.50,3.50]
+VpVs_sed1=[1.75,3.00]
+VpVs_sed2=[1.50,3.50]
+H_c1=[1.00,15.00]
+H_c2=[5.00,20.00]
+H_c3=[5.00,30.00]
+Vs_c1=[2.60,3.60]
+Vs_c2=[3.20,4.50]
+Vs_c3=[4.00,5.00]
+VpVs_c1=[1.65,1.80]
+VpVs_c2=[1.65,1.80]
+VpVs_c3=[1.70,1.90]
+Vs_mantle=[4.00,5.00]
+VpVs_mantle=[1.70,1.90]

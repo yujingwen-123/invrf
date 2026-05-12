@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
-from .model import PARAMETER_NAMES, model_to_depth_grid, params_to_dict, params_to_geometry, row_to_params
+from .model import get_parameter_names, model_to_depth_grid, params_to_dict, params_to_geometry, row_to_params
 from .pbin import PBin
 
 plt.rcParams.update(
@@ -68,15 +68,15 @@ def save_search_results(search_df: pd.DataFrame, path: Path) -> None:
     search_df.to_csv(path, index=False)
 
 
-def save_appraisal_samples(samples: np.ndarray, path: Path) -> None:
-    pd.DataFrame(samples, columns=PARAMETER_NAMES).to_csv(path, index=False)
+def save_appraisal_samples(samples: np.ndarray, path: Path, cfg: Dict) -> None:
+    pd.DataFrame(samples, columns=get_parameter_names(cfg)).to_csv(path, index=False)
 
 
-def summarize_search(search_df: pd.DataFrame, top_fraction: float = 0.10) -> pd.DataFrame:
+def summarize_search(search_df: pd.DataFrame, cfg: Dict, top_fraction: float = 0.10) -> pd.DataFrame:
     n_top = max(5, int(np.ceil(len(search_df) * top_fraction)))
     top = search_df.nsmallest(n_top, "misfit")
     rows = []
-    for name in PARAMETER_NAMES:
+    for name in get_parameter_names(cfg):
         rows.append(
             {
                 "parameter": name,
@@ -88,9 +88,9 @@ def summarize_search(search_df: pd.DataFrame, top_fraction: float = 0.10) -> pd.
     return pd.DataFrame(rows)
 
 
-def summarize_appraisal(samples: np.ndarray, mean: np.ndarray, cov: np.ndarray) -> pd.DataFrame:
+def summarize_appraisal(samples: np.ndarray, mean: np.ndarray, cov: np.ndarray, cfg: Dict) -> pd.DataFrame:
     std = np.sqrt(np.diag(cov)) if np.ndim(cov) == 2 else np.full(len(mean), np.nan)
-    return pd.DataFrame({"parameter": PARAMETER_NAMES, "posterior_mean": mean, "posterior_std": std})
+    return pd.DataFrame({"parameter": get_parameter_names(cfg), "posterior_mean": mean, "posterior_std": std})
 
 
 def plot_pbin_stacks(bins: List[PBin], time: np.ndarray, out_png: Path) -> None:
@@ -173,7 +173,7 @@ def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np
     best = row_to_params(search_results.iloc[0])
     best_d = params_to_dict(best)
     mean_d = params_to_dict(appraisal_mean)
-    dfp = pd.DataFrame(appraisal_samples, columns=PARAMETER_NAMES)
+    dfp = pd.DataFrame(appraisal_samples, columns=search_results.columns[:-1])
     fig, axes = plt.subplots(1, len(pairs), figsize=(15.5, 3.8))
     for ax, (xcol, ycol) in zip(axes, pairs):
         ax.scatter(dfp[xcol], dfp[ycol], s=5, c="black", alpha=0.08, edgecolors="none")

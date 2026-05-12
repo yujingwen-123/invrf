@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.config import load_config
+from src.model import get_parameter_names
+
 
 DEFAULT_PRIORITY = [
     "H_sed", "sed_ratio1", "Vs_sed1", "Vs_sed2", "VpVs_sed",
@@ -116,20 +119,18 @@ def _choose_params(df: pd.DataFrame, params_arg: Sequence[str] | None, max_param
     return selected
 
 
-def _ranges_from_samples(arr: np.ndarray, qlo: float = 0.2, qhi: float = 99.8, pad_frac: float = 0.08):
-    ranges = []
-    for j in range(arr.shape[1]):
-        x = arr[:, j]
-        lo = np.nanpercentile(x, qlo)
-        hi = np.nanpercentile(x, qhi)
-        if not np.isfinite(lo) or not np.isfinite(hi):
-            lo = np.nanmin(x)
-            hi = np.nanmax(x)
-        if lo == hi:
-            lo -= 0.5
-            hi += 0.5
-        pad = pad_frac * (hi - lo)
-        ranges.append((lo - pad, hi + pad))
+def _ranges_from_config(cfg: dict, params: Sequence[str]) -> list[tuple[float, float]]:
+    mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
+    bounds = cfg.get("bounds_classic_nainvrf", {}) if mode == "classic_nainvrf" else cfg.get("bounds", {})
+    ranges: list[tuple[float, float]] = []
+    for p in params:
+        if p in bounds and len(bounds[p]) >= 2:
+            lo, hi = float(bounds[p][0]), float(bounds[p][1])
+            if lo == hi:
+                lo -= 0.5; hi += 0.5
+            ranges.append((lo, hi))
+        else:
+            raise KeyError(f"Missing bounds for parameter '{p}' in config")
     return ranges
 
 
@@ -147,6 +148,7 @@ def plot_appraisal_corner(
     figsize_per_dim: float = 1.5,
     hist_lw: float = 1.0,
     title: str | None = None,
+    ranges: Sequence[tuple[float, float]] | None = None,
 ) -> None:
     arr = samples_df.loc[:, params].to_numpy(dtype=float)
 
@@ -164,7 +166,8 @@ def plot_appraisal_corner(
         arr_plot = arr
 
     n = len(params)
-    ranges = _ranges_from_samples(arr)
+    if ranges is None:
+        raise ValueError("ranges must be provided from config bounds.")
     fig, axes = plt.subplots(n, n, figsize=(figsize_per_dim * n, figsize_per_dim * n), squeeze=False)
 
     # style
@@ -255,6 +258,7 @@ def main() -> None:
         "result_dir",
         help="Project output root directory (the one containing csv/ and figures/)."
     )
+    parser.add_argument("--config", required=True, help="Path to station TOML config used for fixed parameter bounds.")
     parser.add_argument(
         "--samples",
         default=None,
@@ -318,8 +322,10 @@ def main() -> None:
         root, ["appraisal_summary.csv", "posterior_summary.csv"]
     )
 
+    cfg = load_config(args.config)
     samples_df = _load_samples(samples_path)
-    params = _choose_params(samples_df, args.params, args.max_params)
+    params = _choose_params(samples_df, args.params or get_parameter_names(cfg), args.max_params)
+    ranges = _ranges_from_config(cfg, params)
 
     posterior_mean, _ = _load_summary_means(summary_path, params)
     if posterior_mean is None:
@@ -341,6 +347,7 @@ def main() -> None:
         bins=args.bins,
         max_scatter_points=args.max_scatter,
         title="Posterior appraisal parameter corner plot",
+        ranges=ranges,
     )
 
     print(f"[INFO] Samples file : {samples_path}")

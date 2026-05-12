@@ -10,7 +10,7 @@ from src.appraisal import run_appraisal_from_search
 from src.config import ensure_output_dirs, load_config
 from src.finallist import parse_finallist
 from src.inversion import JointRFObjective, run_na
-from src.model import PARAMETER_NAMES, params_to_velocity_model, row_to_params
+from src.model import get_parameter_names, params_to_velocity_model, row_to_params
 from src.pbin import build_pbin_stacks
 """
 from src.postprocess import (
@@ -115,7 +115,7 @@ def main() -> None:
 
     save_search_results(search.results, out["csv"] / "na_search_results.csv")
     top_fraction = float(cfg["na"].get("top_fraction", 0.10))
-    summarize_search(search.results, top_fraction=top_fraction).to_csv(out["csv"] / "search_summary.csv", index=False)
+    summarize_search(search.results, cfg, top_fraction=top_fraction).to_csv(out["csv"] / "search_summary.csv", index=False)
 
     best = search.results.iloc[0]
     best_params = row_to_params(best)
@@ -133,7 +133,7 @@ def main() -> None:
     if bool(cfg["appraisal"].get("enabled", True)):
         print("[INFO] Running NAII-style appraisal...")
         appraisal = run_appraisal_from_search(search, cfg)
-        save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv")
+        save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv", cfg)
 
         posterior_samples = filter_valid_samples(appraisal.samples, cfg)
         n_total = len(appraisal.samples)
@@ -147,7 +147,7 @@ def main() -> None:
         else:
             posterior_cov = np.full((posterior_samples.shape[1], posterior_samples.shape[1]), np.nan)
 
-        summarize_appraisal(posterior_samples, posterior_mean, posterior_cov).to_csv(
+        summarize_appraisal(posterior_samples, posterior_mean, posterior_cov, cfg).to_csv(
             out["csv"] / "appraisal_summary.csv", index=False
         )
 
@@ -174,7 +174,7 @@ def main() -> None:
             f.write(f"Appraisal n_walkers: {appraisal.n_walkers}\n")
             f.write(f"Appraisal raw samples: {len(appraisal.samples)}\n")
             f.write(f"Appraisal valid samples: {len(posterior_samples)}\n")
-        for name in PARAMETER_NAMES:
+        for name in get_parameter_names(cfg):
             f.write(f"{name}: {best[name]:.6f}\n")
 
     print("[INFO] Done.")
