@@ -141,7 +141,15 @@ def plot_best_fit_bins(bins: List[PBin], syns: List[np.ndarray], time: np.ndarra
     plt.close(fig)
 
 
-def _tradeoff_pairs() -> list[tuple[str, str]]:
+def _tradeoff_pairs(cfg: Dict | None = None) -> list[tuple[str, str]]:
+    mode = str((cfg or {}).get("model", {}).get("parameterization", "legacy")).lower()
+    if mode == "classic_nainvrf":
+        return [
+            ("H_sed1", "VpVs_sed1"),
+            ("H_c1", "VpVs_c1"),
+            ("Vs_c3", "Vs_mantle"),
+            ("VpVs_c3", "VpVs_mantle"),
+        ]
     return [
         ("H_sed", "VpVs_sed"),
         ("H_moho", "VpVs_uc"),
@@ -150,8 +158,8 @@ def _tradeoff_pairs() -> list[tuple[str, str]]:
     ]
 
 
-def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fraction: float = 0.10) -> None:
-    pairs = _tradeoff_pairs()
+def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fraction: float = 0.10, cfg: Dict | None = None) -> None:
+    pairs = _tradeoff_pairs(cfg)
     n_top = max(10, int(np.ceil(len(search_results) * top_fraction)))
     top = search_results.nsmallest(n_top, "misfit")
     best = search_results.iloc[0]
@@ -168,8 +176,8 @@ def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fract
     plt.close(fig)
 
 
-def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np.ndarray, appraisal_mean: np.ndarray, out_png: Path) -> None:
-    pairs = _tradeoff_pairs()
+def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np.ndarray, appraisal_mean: np.ndarray, out_png: Path, cfg: Dict | None = None) -> None:
+    pairs = _tradeoff_pairs(cfg)
     best = row_to_params(search_results.iloc[0])
     best_d = params_to_dict(best)
     mean_d = params_to_dict(appraisal_mean)

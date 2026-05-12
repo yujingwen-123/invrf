@@ -123,7 +123,7 @@ def main() -> None:
     plot_best_fit_bins(bins, syns, time, out["figures"] / "bestfit_bins.png")
 
     # Search-stage diagnostic figures only.
-    plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction)
+    plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction, cfg=cfg)
     plot_search_velocity_family(search.results, cfg, out["figures"] / "search_velocity_family.png", top_fraction=top_fraction)
 
     appraisal = None
@@ -139,7 +139,7 @@ def main() -> None:
         n_total = len(appraisal.samples)
         n_valid = len(posterior_samples)
         print(f"[INFO] Appraisal valid samples: {n_valid}/{n_total} ({100.0 * n_valid / max(n_total, 1):.1f}%)")
-        save_appraisal_samples(posterior_samples, out["csv"] / "naii_samples_valid.csv")
+        save_appraisal_samples(posterior_samples, out["csv"] / "naii_samples_valid.csv", cfg)
 
         posterior_mean = np.mean(posterior_samples, axis=0)
         if len(posterior_samples) > 1:
@@ -156,6 +156,7 @@ def main() -> None:
             appraisal_samples=posterior_samples,
             appraisal_mean=posterior_mean,
             out_png=out["figures"] / "posterior_tradeoffs.png",
+            cfg=cfg,
         )
         plot_velocity_posterior_density(
             search_results=search.results,
