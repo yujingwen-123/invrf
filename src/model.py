@@ -116,6 +116,7 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
     geom = params_to_geometry(params, cfg)
     model_cfg = cfg["model"]
     min_lc = float(model_cfg.get("min_lower_crust_thickness", 5.0))
+    allow_lvz = bool(model_cfg.get("allow_low_velocity_layer", False))
     penalty = 0.0
 
     mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
@@ -124,15 +125,18 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
     if geom.h_lc < min_lc:
         return False, 1.0e6 + 100.0 * (min_lc - geom.h_lc) ** 2
 
-    # Weak monotonicity / physical ordering constraints.
-    if mode == "classic_nainvrf":
-        if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_c1"] <= p["Vs_c2"] <= p["Vs_c3"] <= p["Vs_mantle"]):
-            return False, 1.0e6
-    else:
-        if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_uc"] <= p["Vs_lc"] <= p["Vs_mantle"]):
-            return False, 1.0e6
-        if p["VpVs_sed"] < p["VpVs_uc"]:
-            penalty += 25.0 * (p["VpVs_uc"] - p["VpVs_sed"]) ** 2
+    # Optional monotonic Vs ordering constraint:
+    # - allow_low_velocity_layer = false (default): disallow LVZ by enforcing non-decreasing Vs with depth.
+    # - allow_low_velocity_layer = true: allow velocity reversals (LVZ), only keep other geometric/physical checks.
+    if not allow_lvz:
+        if mode == "classic_nainvrf":
+            if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_c1"] <= p["Vs_c2"] <= p["Vs_c3"] <= p["Vs_mantle"]):
+                return False, 1.0e6
+        else:
+            if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_uc"] <= p["Vs_lc"] <= p["Vs_mantle"]):
+                return False, 1.0e6
+            if p["VpVs_sed"] < p["VpVs_uc"]:
+                penalty += 25.0 * (p["VpVs_uc"] - p["VpVs_sed"]) ** 2
 
     return True, penalty
 
