@@ -179,8 +179,8 @@ def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fract
 def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np.ndarray, appraisal_mean: np.ndarray, out_png: Path, cfg: Dict | None = None) -> None:
     pairs = _tradeoff_pairs(cfg)
     best = row_to_params(search_results.iloc[0])
-    best_d = params_to_dict(best)
-    mean_d = params_to_dict(appraisal_mean)
+    best_d = params_to_dict(best, cfg)
+    mean_d = params_to_dict(appraisal_mean, cfg)
     dfp = pd.DataFrame(appraisal_samples, columns=search_results.columns[:-1])
     fig, axes = plt.subplots(1, len(pairs), figsize=(15.5, 3.8))
     for ax, (xcol, ycol) in zip(axes, pairs):
@@ -199,9 +199,29 @@ def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np
 
 def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 15.0) -> tuple[np.ndarray, np.ndarray]:
     g = params_to_geometry(params, cfg)
-    pdict = params_to_dict(params)
-    depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
-    vs = np.array([pdict["Vs_sed1"], pdict["Vs_sed2"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
+    pdict = params_to_dict(params, cfg)
+    mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
+    if mode == "classic_nainvrf":
+        depths = np.array([
+            0.0,
+            g.h_sed1,
+            g.h_sed1 + g.h_sed2,
+            g.h_sed1 + g.h_sed2 + pdict["H_c1"],
+            g.h_sed1 + g.h_sed2 + pdict["H_c1"] + pdict["H_c2"],
+            g.H_moho,
+            g.H_moho + mantle_extra,
+        ])
+        vs = np.array([
+            pdict["Vs_sed1"],
+            pdict["Vs_sed2"],
+            pdict["Vs_c1"],
+            pdict["Vs_c2"],
+            pdict["Vs_c3"],
+            pdict["Vs_mantle"],
+        ])
+    else:
+        depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
+        vs = np.array([pdict["Vs_sed1"], pdict["Vs_sed2"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
     x = [vs[0], vs[0]]
     y = [depths[0], depths[1]]
     for i in range(1, len(vs)):
