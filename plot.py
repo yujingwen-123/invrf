@@ -53,10 +53,10 @@ def _load_samples(samples_path: Path) -> pd.DataFrame:
     return num
 
 
-def _load_best(search_path: Path | None, params: Sequence[str]) -> np.ndarray | None:
-    if search_path is None or not search_path.exists():
+def _load_best_from_posterior(samples_path: Path, params: Sequence[str]) -> np.ndarray | None:
+    if not samples_path.exists():
         return None
-    df = pd.read_csv(search_path)
+    df = pd.read_csv(samples_path)
     if "misfit" in df.columns:
         row = df.loc[df["misfit"].idxmin()]
     else:
@@ -265,11 +265,6 @@ def main() -> None:
         help="Override appraisal sample file. Defaults to csv/naii_samples_valid.csv or csv/naii_samples.csv."
     )
     parser.add_argument(
-        "--search",
-        default=None,
-        help="Override search result file. Defaults to csv/na_search_results.csv."
-    )
-    parser.add_argument(
         "--summary",
         default=None,
         help="Override appraisal summary file. Defaults to csv/appraisal_summary.csv."
@@ -315,9 +310,6 @@ def main() -> None:
     if samples_path is None:
         raise FileNotFoundError("Could not find appraisal sample file under result_dir/csv/")
 
-    search_path = Path(args.search).expanduser().resolve() if args.search else _auto_find_file(
-        root, ["na_search_results.csv", "search_results.csv"]
-    )
     summary_path = Path(args.summary).expanduser().resolve() if args.summary else _auto_find_file(
         root, ["appraisal_summary.csv", "posterior_summary.csv"]
     )
@@ -332,7 +324,7 @@ def main() -> None:
         posterior_mean = samples_df.loc[:, params].mean().to_numpy(dtype=float)
 
     posterior_median = samples_df.loc[:, params].median().to_numpy(dtype=float)
-    best = _load_best(search_path, params)
+    best = _load_best_from_posterior(samples_path, params)
 
     outpath = Path(args.out).expanduser().resolve() if args.out else (root / "figures" / "posterior_corner.png")
     outpath.parent.mkdir(parents=True, exist_ok=True)
@@ -351,7 +343,6 @@ def main() -> None:
     )
 
     print(f"[INFO] Samples file : {samples_path}")
-    print(f"[INFO] Search file  : {search_path if search_path else 'None'}")
     print(f"[INFO] Summary file : {summary_path if summary_path else 'None'}")
     print(f"[INFO] Params       : {params}")
     print(f"[INFO] Output       : {outpath}")
