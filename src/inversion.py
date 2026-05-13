@@ -11,6 +11,7 @@ from .forward import synthetic_rf_for_rayp
 from .misfit import misfit_value
 from .model import get_parameter_names, parameter_bounds, params_to_dict, validate_params
 from .pbin import PBin
+from .pso import pso
 
 
 _GLOBAL_OBJECTIVE = None
