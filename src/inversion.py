@@ -34,6 +34,7 @@ class SearchResult:
     misfits: np.ndarray
     lower_bounds: np.ndarray
     upper_bounds: np.ndarray
+    trace: Dict | None = None
 
 
 class JointRFObjective:
@@ -208,6 +209,8 @@ def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
     g_idx = int(np.argmin(fp))
     g = p[g_idx].copy()
     fg = float(fp[g_idx])
+    best_history = [fg]
+    mean_history = [float(np.mean(fp))]
 
     for it in range(1, maxiter + 1):
         rp = rng.uniform(size=(swarmsize, len(lower)))
@@ -231,6 +234,8 @@ def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
                 break
         if debug:
             print(f"[PSO] iter={it}, best={fg:.6f}")
+        best_history.append(float(fg))
+        mean_history.append(float(np.mean(fp)))
 
     models = np.vstack([p, g.reshape(1, -1)])
     misfits = np.concatenate([fp, np.array([fg], dtype=float)])
@@ -239,4 +244,9 @@ def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
     misfits = misfits[order]
     df = pd.DataFrame(models, columns=get_parameter_names(cfg))
     df["misfit"] = misfits
-    return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper)
+    trace = {
+        "method": "pso",
+        "best_misfit_history": np.asarray(best_history, dtype=float),
+        "mean_misfit_history": np.asarray(mean_history, dtype=float),
+    }
+    return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper, trace=trace)

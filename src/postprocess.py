@@ -251,6 +251,41 @@ def plot_search_velocity_family(search_results: pd.DataFrame, cfg: Dict, out_png
     plt.close(fig)
 
 
+def plot_pso_diagnostics(trace: Dict | None, out_png: Path) -> None:
+    if not trace or str(trace.get("method", "")).lower() != "pso":
+        return
+    best = np.asarray(trace.get("best_misfit_history", []), dtype=float)
+    mean = np.asarray(trace.get("mean_misfit_history", []), dtype=float)
+    if best.size == 0:
+        return
+
+    it = np.arange(best.size)
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.0))
+
+    axes[0].plot(it, best, color="crimson", lw=1.8, label="Global best misfit")
+    if mean.size == best.size:
+        axes[0].plot(it, mean, color="0.25", lw=1.3, ls="--", label="Swarm mean misfit")
+    axes[0].set_xlabel("Iteration")
+    axes[0].set_ylabel("Misfit")
+    axes[0].set_title("PSO convergence")
+    axes[0].legend(frameon=True)
+
+    improve = np.diff(best)
+    if improve.size > 0:
+        axes[1].plot(np.arange(1, best.size), improve, color="navy", lw=1.4)
+        axes[1].axhline(0.0, color="0.4", lw=0.9, ls="--")
+        axes[1].set_xlabel("Iteration")
+        axes[1].set_ylabel("Δ(best misfit)")
+        axes[1].set_title("PSO per-iteration improvement")
+    else:
+        axes[1].axis("off")
+
+    fig.suptitle("PSO search diagnostics", y=1.02)
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def _centers_to_edges(x: np.ndarray) -> np.ndarray:
     x = np.asarray(x, dtype=float)
     if x.ndim != 1 or x.size < 2:

@@ -62,6 +62,7 @@ def main() -> None:
         plot_posterior_tradeoffs,
         plot_search_tradeoffs,
         plot_search_velocity_family,
+        plot_pso_diagnostics,
         plot_velocity_posterior_density,
         save_appraisal_samples,
         save_pbin_table,
@@ -131,6 +132,8 @@ def main() -> None:
     # Search-stage diagnostic figures only.
     plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction, cfg=cfg)
     plot_search_velocity_family(search.results, cfg, out["figures"] / "search_velocity_family.png", top_fraction=top_fraction)
+    if search.trace is not None and str(search.trace.get("method", "")).lower() == "pso":
+        plot_pso_diagnostics(search.trace, out["figures"] / "pso_diagnostics.png")
 
     appraisal = None
     posterior_samples = None
