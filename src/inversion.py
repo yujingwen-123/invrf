@@ -102,6 +102,13 @@ class JointRFObjective:
             (k_sed, "K_sed_center", "K_sed_sigma"),
             (k_crust, "K_crust_center", "K_crust_sigma"),
         ]
+        if mode == "classic_nainvrf":
+            terms.extend(
+                [
+                    (pd["H_sed1"], "H_sed1_center", "H_sed1_sigma"),
+                    (pd["H_sed2"], "H_sed2_center", "H_sed2_sigma"),
+                ]
+            )
         for value, center_key, sigma_key in terms:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
@@ -168,6 +175,64 @@ def run_na(cfg: Dict, objective: JointRFObjective) -> SearchResult:
         models = np.vstack([models, proposal])
         misfits = np.concatenate([misfits, prop_misfit])
 
+    order = np.argsort(misfits)
+    models = models[order]
+    misfits = misfits[order]
+    df = pd.DataFrame(models, columns=get_parameter_names(cfg))
+    df["misfit"] = misfits
+    return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper)
+
+
+def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
+    lower, upper = parameter_bounds(cfg)
+    pcfg = cfg.get("pso", {})
+    swarmsize = int(pcfg.get("swarmsize", 120))
+    omega = float(pcfg.get("omega", 0.6))
+    phip = float(pcfg.get("phip", 1.4))
+    phig = float(pcfg.get("phig", 1.4))
+    maxiter = int(pcfg.get("maxiter", 120))
+    minstep = float(pcfg.get("minstep", 1e-8))
+    minfunc = float(pcfg.get("minfunc", 1e-8))
+    debug = bool(pcfg.get("debug", False))
+    seed = pcfg.get("seed", None)
+    seed = None if seed is None else int(seed)
+    rng = np.random.default_rng(seed)
+
+    vhigh = np.abs(upper - lower)
+    vlow = -vhigh
+    x = lower + rng.random((swarmsize, len(lower))) * (upper - lower)
+    v = rng.uniform(vlow, vhigh, size=(swarmsize, len(lower)))
+    p = x.copy()
+    fp = objective.evaluate_many(x)  # uses objective pool when parallel is enabled
+    g_idx = int(np.argmin(fp))
+    g = p[g_idx].copy()
+    fg = float(fp[g_idx])
+
+    for it in range(1, maxiter + 1):
+        rp = rng.uniform(size=(swarmsize, len(lower)))
+        rg = rng.uniform(size=(swarmsize, len(lower)))
+        v = omega * v + phip * rp * (p - x) + phig * rg * (g - x)
+        x = np.clip(x + v, lower, upper)
+
+        fx = objective.evaluate_many(x)
+        improve = fx < fp
+        p[improve] = x[improve]
+        fp[improve] = fx[improve]
+
+        i_min = int(np.argmin(fp))
+        if fp[i_min] < fg:
+            p_min = p[i_min].copy()
+            stepsize = float(np.sqrt(np.sum((g - p_min) ** 2)))
+            fdelta = float(np.abs(fg - fp[i_min]))
+            g = p_min
+            fg = float(fp[i_min])
+            if fdelta <= minfunc or stepsize <= minstep:
+                break
+        if debug:
+            print(f"[PSO] iter={it}, best={fg:.6f}")
+
+    models = np.vstack([p, g.reshape(1, -1)])
+    misfits = np.concatenate([fp, np.array([fg], dtype=float)])
     order = np.argsort(misfits)
     models = models[order]
     misfits = misfits[order]
