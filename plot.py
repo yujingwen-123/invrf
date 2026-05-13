@@ -9,10 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.config import load_config
-from src.model import get_parameter_names
-
-
 DEFAULT_PRIORITY = [
     "H_sed", "sed_ratio1", "Vs_sed1", "Vs_sed2", "VpVs_sed",
     "H_uc", "Vs_uc", "VpVs_uc", "H_moho", "Vs_lc", "VpVs_lc",
@@ -119,18 +115,23 @@ def _choose_params(df: pd.DataFrame, params_arg: Sequence[str] | None, max_param
     return selected
 
 
-def _ranges_from_config(cfg: dict, params: Sequence[str]) -> list[tuple[float, float]]:
-    mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
-    bounds = cfg.get("bounds_classic_nainvrf", {}) if mode == "classic_nainvrf" else cfg.get("bounds", {})
+def _ranges_from_samples(df: pd.DataFrame, params: Sequence[str], pad_fraction: float = 0.05) -> list[tuple[float, float]]:
     ranges: list[tuple[float, float]] = []
     for p in params:
-        if p in bounds and len(bounds[p]) >= 2:
-            lo, hi = float(bounds[p][0]), float(bounds[p][1])
-            if lo == hi:
-                lo -= 0.5; hi += 0.5
-            ranges.append((lo, hi))
+        vals = pd.to_numeric(df[p], errors="coerce").to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            raise ValueError(f"No finite values for parameter '{p}' in samples.")
+        lo = float(np.min(vals))
+        hi = float(np.max(vals))
+        if lo == hi:
+            lo -= 0.5
+            hi += 0.5
         else:
-            raise KeyError(f"Missing bounds for parameter '{p}' in config")
+            pad = (hi - lo) * float(pad_fraction)
+            lo -= pad
+            hi += pad
+        ranges.append((lo, hi))
     return ranges
 
 
@@ -198,6 +199,7 @@ def plot_appraisal_corner(
 
                 ax.set_xlim(ranges[j])
                 ax.set_yticks([])
+                ax.set_title(params[j], fontsize=9, pad=2)
             else:
                 x = arr_plot[:, j]
                 y = arr_plot[:, i]
@@ -213,16 +215,12 @@ def plot_appraisal_corner(
                 ax.set_xlim(ranges[j])
                 ax.set_ylim(ranges[i])
 
-            if i == n - 1:
-                ax.set_xlabel(params[j], fontsize=9)
-            else:
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+            if i != n - 1:
                 ax.set_xticklabels([])
-
-            if j == 0 and i > 0:
-                ax.set_ylabel(params[i], fontsize=9)
-            else:
-                if i != j:
-                    ax.set_yticklabels([])
+            if i != j:
+                ax.set_yticklabels([])
 
             ax.tick_params(axis="both", labelsize=8, length=2.5, pad=1.5)
 
@@ -258,7 +256,6 @@ def main() -> None:
         "result_dir",
         help="Project output root directory (the one containing csv/ and figures/)."
     )
-    parser.add_argument("--config", required=True, help="Path to station TOML config used for fixed parameter bounds.")
     parser.add_argument(
         "--samples",
         default=None,
@@ -314,10 +311,9 @@ def main() -> None:
         root, ["appraisal_summary.csv", "posterior_summary.csv"]
     )
 
-    cfg = load_config(args.config)
     samples_df = _load_samples(samples_path)
-    params = _choose_params(samples_df, args.params or get_parameter_names(cfg), args.max_params)
-    ranges = _ranges_from_config(cfg, params)
+    params = _choose_params(samples_df, args.params, args.max_params)
+    ranges = _ranges_from_samples(samples_df, params)
 
     posterior_mean, _ = _load_summary_means(summary_path, params)
     if posterior_mean is None:
