@@ -11,6 +11,7 @@ from .forward import synthetic_rf_for_rayp
 from .misfit import misfit_value
 from .model import get_parameter_names, parameter_bounds, params_to_dict, validate_params
 from .pbin import PBin
+from .pso import pso
 
 
 _GLOBAL_OBJECTIVE = None
@@ -102,6 +103,13 @@ class JointRFObjective:
             (k_sed, "K_sed_center", "K_sed_sigma"),
             (k_crust, "K_crust_center", "K_crust_sigma"),
         ]
+        if mode == "classic_nainvrf":
+            terms.extend(
+                [
+                    (pd["H_sed1"], "H_sed1_center", "H_sed1_sigma"),
+                    (pd["H_sed2"], "H_sed2_center", "H_sed2_sigma"),
+                ]
+            )
         for value, center_key, sigma_key in terms:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
@@ -168,6 +176,35 @@ def run_na(cfg: Dict, objective: JointRFObjective) -> SearchResult:
         models = np.vstack([models, proposal])
         misfits = np.concatenate([misfits, prop_misfit])
 
+    order = np.argsort(misfits)
+    models = models[order]
+    misfits = misfits[order]
+    df = pd.DataFrame(models, columns=get_parameter_names(cfg))
+    df["misfit"] = misfits
+    return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper)
+
+
+def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
+    lower, upper = parameter_bounds(cfg)
+    pcfg = cfg.get("pso", {})
+    g, fg, p, fp = pso(
+        func=lambda x: objective.evaluate_single(np.asarray(x, dtype=float))[0],
+        lb=lower,
+        ub=upper,
+        swarmsize=int(pcfg.get("swarmsize", 120)),
+        omega=float(pcfg.get("omega", 0.6)),
+        phip=float(pcfg.get("phip", 1.4)),
+        phig=float(pcfg.get("phig", 1.4)),
+        maxiter=int(pcfg.get("maxiter", 120)),
+        minstep=float(pcfg.get("minstep", 1e-8)),
+        minfunc=float(pcfg.get("minfunc", 1e-8)),
+        debug=bool(pcfg.get("debug", False)),
+        processes=int(pcfg.get("processes", 1)),
+        particle_output=True,
+        seed=(None if pcfg.get("seed", None) is None else int(pcfg["seed"])),
+    )
+    models = np.vstack([p, np.asarray(g, dtype=float).reshape(1, -1)])
+    misfits = np.concatenate([np.asarray(fp, dtype=float), np.array([float(fg)], dtype=float)])
     order = np.argsort(misfits)
     models = models[order]
     misfits = misfits[order]
