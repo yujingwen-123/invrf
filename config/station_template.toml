@@ -75,6 +75,21 @@ n_iterations = 100
 top_fraction = 0.25
 seed = 20260422
 
+[search]
+method = "na"  # na | pso
+
+[pso]
+swarmsize = 120
+omega = 0.6
+phip = 1.4
+phig = 1.4
+maxiter = 120
+minstep = 1.0e-8
+minfunc = 1.0e-8
+processes = 1
+seed = 20260422
+debug = false
+
 [appraisal]
 enabled = true
 n_resample = 75000
