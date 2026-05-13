@@ -102,6 +102,13 @@ class JointRFObjective:
             (k_sed, "K_sed_center", "K_sed_sigma"),
             (k_crust, "K_crust_center", "K_crust_sigma"),
         ]
+        if mode == "classic_nainvrf":
+            terms.extend(
+                [
+                    (pd["H_sed1"], "H_sed1_center", "H_sed1_sigma"),
+                    (pd["H_sed2"], "H_sed2_center", "H_sed2_sigma"),
+                ]
+            )
         for value, center_key, sigma_key in terms:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
