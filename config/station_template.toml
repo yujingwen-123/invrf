@@ -75,8 +75,24 @@ n_iterations = 100
 top_fraction = 0.25
 seed = 20260422
 
+[search]
+method = "na"  # na | pso
+
+[pso]
+swarmsize = 120
+omega = 0.6
+phip = 1.4
+phig = 1.4
+maxiter = 120
+minstep = 1.0e-8
+minfunc = 1.0e-8
+processes = 1
+seed = 20260422
+debug = false
+
 [appraisal]
 enabled = true
+allow_with_pso = false
 n_resample = 75000
 n_walkers = 15
 start_fraction = 0.25
@@ -111,12 +127,10 @@ VpVs_mantle = [1.75, 1.90]
 
 
 [bounds_classic_nainvrf]
-H_sed1=[0.00,2.00]
-H_sed2=[0.00,3.00]
-Vs_sed1=[1.75,3.00]
-Vs_sed2=[1.50,3.50]
-VpVs_sed1=[1.75,3.00]
-VpVs_sed2=[1.50,3.50]
+H_sed=[0.00,5.00]
+Vs_sed0=[1.50,3.00]
+Vs_sedz=[1.50,3.50]
+K_sed=[1.75,3.00]
 H_c1=[1.00,15.00]
 H_c2=[5.00,20.00]
 H_c3=[5.00,30.00]

@@ -9,7 +9,7 @@ import numpy as np
 from src.appraisal import run_appraisal_from_search
 from src.config import ensure_output_dirs, load_config
 from src.finallist import parse_finallist
-from src.inversion import JointRFObjective, run_na
+from src.inversion import JointRFObjective, run_na, run_pso
 from src.model import get_parameter_names, params_to_velocity_model, row_to_params
 from src.pbin import build_pbin_stacks
 """
@@ -62,6 +62,7 @@ def main() -> None:
         plot_posterior_tradeoffs,
         plot_search_tradeoffs,
         plot_search_velocity_family,
+        plot_pso_diagnostics,
         plot_velocity_posterior_density,
         save_appraisal_samples,
         save_pbin_table,
@@ -108,8 +109,14 @@ def main() -> None:
     else:
         print("[INFO] Parallel disabled; serial evaluation will be used.")
 
+    method = str(cfg.get("search", {}).get("method", "na")).lower()
     try:
-        search = run_na(cfg, objective)
+        if method == "pso":
+            print("[INFO] Running PSO search...")
+            search = run_pso(cfg, objective)
+        else:
+            print("[INFO] Running NA search...")
+            search = run_na(cfg, objective)
     finally:
         objective.close()
 
@@ -125,12 +132,20 @@ def main() -> None:
     # Search-stage diagnostic figures only.
     plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction, cfg=cfg)
     plot_search_velocity_family(search.results, cfg, out["figures"] / "search_velocity_family.png", top_fraction=top_fraction)
+    if search.trace is not None and str(search.trace.get("method", "")).lower() == "pso":
+        plot_pso_diagnostics(search.trace, out["figures"] / "pso_diagnostics.png")
 
     appraisal = None
     posterior_samples = None
     posterior_mean = None
     posterior_cov = None
-    if bool(cfg["appraisal"].get("enabled", True)):
+    appraisal_enabled = bool(cfg["appraisal"].get("enabled", True))
+    allow_with_pso = bool(cfg["appraisal"].get("allow_with_pso", False))
+    if method == "pso" and appraisal_enabled and not allow_with_pso:
+        print("[INFO] PSO mode detected: skipping NAII appraisal (set [appraisal].allow_with_pso=true to enable).")
+        appraisal_enabled = False
+
+    if appraisal_enabled:
         print("[INFO] Running NAII-style appraisal...")
         appraisal = run_appraisal_from_search(search, cfg)
         save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv", cfg)
