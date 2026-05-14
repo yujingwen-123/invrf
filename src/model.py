@@ -8,10 +8,9 @@ import pandas as pd
 
 LEGACY_PARAMETER_NAMES = [
     "H_sed",
-    "sed_ratio1",
-    "Vs_sed1",
-    "Vs_sed2",
-    "VpVs_sed",
+    "Vs_sed0",
+    "Vs_sedz",
+    "K_sed",
     "H_uc",
     "Vs_uc",
     "VpVs_uc",
@@ -96,8 +95,7 @@ def params_to_geometry(params: np.ndarray, cfg: Dict) -> LayerGeometry:
         H_moho = p["H_sed"] + p["H_c1"] + p["H_c2"] + p["H_c3"]
     else:
         H_sed = p["H_sed"]
-        sed_ratio1 = p["sed_ratio1"]
-        h_sed1 = H_sed * sed_ratio1
+        h_sed1 = 0.5 * H_sed
         h_sed2 = H_sed - h_sed1
         h_uc = p["H_uc"]
         H_moho = p["H_moho"]
@@ -120,8 +118,6 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
     penalty = 0.0
 
     mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
-    if mode != "classic_nainvrf" and not (0.0 < p["sed_ratio1"] < 1.0):
-        return False, 1.0e6
     if geom.h_lc < min_lc:
         return False, 1.0e6 + 100.0 * (min_lc - geom.h_lc) ** 2
 
@@ -133,10 +129,10 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
             if not (p["Vs_sed0"] <= p["Vs_sedz"] <= p["Vs_c1"] <= p["Vs_c2"] <= p["Vs_c3"] <= p["Vs_mantle"]):
                 return False, 1.0e6
         else:
-            if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_uc"] <= p["Vs_lc"] <= p["Vs_mantle"]):
+            if not (p["Vs_sed0"] <= p["Vs_sedz"] <= p["Vs_uc"] <= p["Vs_lc"] <= p["Vs_mantle"]):
                 return False, 1.0e6
-            if p["VpVs_sed"] < p["VpVs_uc"]:
-                penalty += 25.0 * (p["VpVs_uc"] - p["VpVs_sed"]) ** 2
+            if p["K_sed"] < p["VpVs_uc"]:
+                penalty += 25.0 * (p["VpVs_uc"] - p["K_sed"]) ** 2
 
     return True, penalty
 
@@ -196,8 +192,8 @@ def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
         vpvs_nodes = np.array([p["K_sed"], p["K_sed"], p["VpVs_c1"], p["VpVs_c2"], p["VpVs_c3"]], dtype=float)
     else:
         depth_bounds = np.array([0.0, geom.h_sed1, geom.h_sed1 + geom.h_sed2, geom.h_sed1 + geom.h_sed2 + geom.h_uc, geom.H_moho], dtype=float)
-        vs_nodes = np.array([p["Vs_sed1"], p["Vs_sed2"], p["Vs_uc"], p["Vs_lc"]], dtype=float)
-        vpvs_nodes = np.array([p["VpVs_sed"], p["VpVs_sed"], p["VpVs_uc"], p["VpVs_lc"]], dtype=float)
+        vs_nodes = np.array([p["Vs_sed0"], p["Vs_sedz"], p["Vs_uc"], p["Vs_lc"]], dtype=float)
+        vpvs_nodes = np.array([p["K_sed"], p["K_sed"], p["VpVs_uc"], p["VpVs_lc"]], dtype=float)
     sed_dz = float(cfg.get("model", {}).get("sed_control_dz_km", 0.0))
     crust_dz = float(cfg.get("model", {}).get("crust_control_dz_km", 0.0))
     interfaces, vs_finite, vpvs_finite = _build_interpolated_layers(depth_bounds, vs_nodes, vpvs_nodes, sed_dz, crust_dz)

@@ -112,10 +112,9 @@ maxtasksperchild = 0
 
 [bounds]
 H_sed = [0, 2]
-sed_ratio1 = [0.10, 0.80]
-Vs_sed1 = [0.5, 3.00]
-Vs_sed2 = [1.50, 3.50]
-VpVs_sed = [1.80, 3.5]
+Vs_sed0 = [0.5, 3.00]
+Vs_sedz = [1.50, 3.50]
+K_sed = [1.80, 3.5]
 H_uc = [15.0, 25.0]
 Vs_uc = [3.20, 3.90]
 VpVs_uc = [1.55, 1.85]

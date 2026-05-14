@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 DEFAULT_PRIORITY = [
-    "H_sed", "sed_ratio1", "Vs_sed1", "Vs_sed2", "VpVs_sed",
+    "H_sed", "Vs_sed0", "Vs_sedz", "K_sed",
     "H_uc", "Vs_uc", "VpVs_uc", "H_moho", "Vs_lc", "VpVs_lc",
     "Vs_mantle", "VpVs_mantle",
 ]

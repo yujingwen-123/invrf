@@ -29,7 +29,7 @@ def _require_cols(df: pd.DataFrame, cols: list[str]) -> None:
 def _detect_mode(df: pd.DataFrame) -> str:
     if {"H_sed", "Vs_sed0", "Vs_sedz", "K_sed", "H_c1", "H_c2", "H_c3"}.issubset(df.columns):
         return "classic_nainvrf"
-    if {"H_sed", "H_uc", "H_moho"}.issubset(df.columns):
+    if {"H_sed", "Vs_sed0", "Vs_sedz", "K_sed", "H_uc", "H_moho"}.issubset(df.columns):
         return "legacy"
     raise ValueError("Cannot detect parameterization mode from sample columns.")
 
@@ -57,16 +57,16 @@ def _derived_series(df: pd.DataFrame) -> dict[str, np.ndarray]:
             + df["VpVs_c3"].to_numpy() * df["H_c3"].to_numpy()
         ) / np.maximum(h_crust_no_sed, 1e-6)
     else:
-        _require_cols(df, ["H_sed", "VpVs_sed", "H_uc", "H_moho", "VpVs_uc", "VpVs_lc"])
+        _require_cols(df, ["H_sed", "K_sed", "H_uc", "H_moho", "VpVs_uc", "VpVs_lc"])
         h_sed = df["H_sed"].to_numpy()
         h_crust_total = df["H_moho"].to_numpy()
         h_crust_no_sed = np.maximum(df["H_moho"].to_numpy() - df["H_sed"].to_numpy(), 0.0)
 
-        k_sed = df["VpVs_sed"].to_numpy()
+        k_sed = df["K_sed"].to_numpy()
         h_uc = df["H_uc"].to_numpy()
         h_lc = np.maximum(df["H_moho"].to_numpy() - df["H_sed"].to_numpy() - df["H_uc"].to_numpy(), 0.0)
         k_crust_total = (
-            df["VpVs_sed"].to_numpy() * df["H_sed"].to_numpy()
+            df["K_sed"].to_numpy() * df["H_sed"].to_numpy()
             + df["VpVs_uc"].to_numpy() * h_uc
             + df["VpVs_lc"].to_numpy() * h_lc
         ) / np.maximum(h_crust_total, 1e-6)

@@ -151,7 +151,7 @@ def _tradeoff_pairs(cfg: Dict | None = None) -> list[tuple[str, str]]:
             ("VpVs_c3", "VpVs_mantle"),
         ]
     return [
-        ("H_sed", "VpVs_sed"),
+        ("H_sed", "K_sed"),
         ("H_moho", "VpVs_uc"),
         ("Vs_lc", "Vs_mantle"),
         ("VpVs_lc", "VpVs_mantle"),
@@ -212,8 +212,8 @@ def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 1
             g.H_moho + mantle_extra,
         ])
         vs = np.array([
-            pdict["Vs_sed1"],
-            pdict["Vs_sed2"],
+            pdict["Vs_sed0"],
+            pdict["Vs_sedz"],
             pdict["Vs_c1"],
             pdict["Vs_c2"],
             pdict["Vs_c3"],
@@ -221,7 +221,7 @@ def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 1
         ])
     else:
         depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
-        vs = np.array([pdict["Vs_sed1"], pdict["Vs_sed2"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
+        vs = np.array([pdict["Vs_sed0"], pdict["Vs_sedz"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
     x = [vs[0], vs[0]]
     y = [depths[0], depths[1]]
     for i in range(1, len(vs)):

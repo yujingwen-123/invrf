@@ -90,10 +90,10 @@ class JointRFObjective:
         else:
             h_sed = pd["H_sed"]
             h_moho = pd["H_moho"]
-            k_sed = pd["VpVs_sed"]
+            k_sed = pd["K_sed"]
             h_uc = max(pd["H_uc"], 1e-6)
             h_lc = max(pd["H_moho"] - pd["H_sed"] - pd["H_uc"], 1e-6)
-            k_crust = (pd["VpVs_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / max(pd["H_moho"], 1e-6)
+            k_crust = (pd["K_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / max(pd["H_moho"], 1e-6)
 
         penalty = 0.0
         terms = [
