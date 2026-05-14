@@ -33,6 +33,7 @@ class SearchResult:
     misfits: np.ndarray
     lower_bounds: np.ndarray
     upper_bounds: np.ndarray
+    trace: Dict | None = None
 
 
 class JointRFObjective:
@@ -78,20 +79,20 @@ class JointRFObjective:
         mode = str(self.cfg.get("model", {}).get("parameterization", "legacy")).lower()
 
         if mode == "classic_nainvrf":
-            h_sed = pd["H_sed1"] + pd["H_sed2"]
+            h_sed = pd["H_sed"]
             h_moho = h_sed + pd["H_c1"] + pd["H_c2"] + pd["H_c3"]
-            k_sed = 0.5 * (pd["VpVs_sed1"] + pd["VpVs_sed2"])
+            k_sed = pd["K_sed"]
             k_crust = (
-                pd["VpVs_sed1"] * pd["H_sed1"] + pd["VpVs_sed2"] * pd["H_sed2"] +
+                pd["K_sed"] * h_sed +
                 pd["VpVs_c1"] * pd["H_c1"] + pd["VpVs_c2"] * pd["H_c2"] + pd["VpVs_c3"] * pd["H_c3"]
             ) / max(h_moho, 1e-6)
         else:
             h_sed = pd["H_sed"]
             h_moho = pd["H_moho"]
-            k_sed = pd["VpVs_sed"]
+            k_sed = pd["K_sed"]
             h_uc = max(pd["H_uc"], 1e-6)
             h_lc = max(pd["H_moho"] - pd["H_sed"] - pd["H_uc"], 1e-6)
-            k_crust = (pd["VpVs_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / max(pd["H_moho"], 1e-6)
+            k_crust = (pd["K_sed"] * pd["H_sed"] + pd["VpVs_uc"] * h_uc + pd["VpVs_lc"] * h_lc) / max(pd["H_moho"], 1e-6)
 
         penalty = 0.0
         terms = [
@@ -102,6 +103,12 @@ class JointRFObjective:
             (k_sed, "K_sed_center", "K_sed_sigma"),
             (k_crust, "K_crust_center", "K_crust_sigma"),
         ]
+        if mode == "classic_nainvrf":
+            terms.extend(
+                [
+                    (pd["H_sed"], "H_sed_center", "H_sed_sigma"),
+                ]
+            )
         for value, center_key, sigma_key in terms:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (float(value) - float(pri[center_key])) / float(pri[sigma_key])
@@ -174,3 +181,70 @@ def run_na(cfg: Dict, objective: JointRFObjective) -> SearchResult:
     df = pd.DataFrame(models, columns=get_parameter_names(cfg))
     df["misfit"] = misfits
     return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper)
+
+
+def run_pso(cfg: Dict, objective: JointRFObjective) -> SearchResult:
+    lower, upper = parameter_bounds(cfg)
+    pcfg = cfg.get("pso", {})
+    swarmsize = int(pcfg.get("swarmsize", 120))
+    omega = float(pcfg.get("omega", 0.6))
+    phip = float(pcfg.get("phip", 1.4))
+    phig = float(pcfg.get("phig", 1.4))
+    maxiter = int(pcfg.get("maxiter", 120))
+    minstep = float(pcfg.get("minstep", 1e-8))
+    minfunc = float(pcfg.get("minfunc", 1e-8))
+    debug = bool(pcfg.get("debug", False))
+    seed = pcfg.get("seed", None)
+    seed = None if seed is None else int(seed)
+    rng = np.random.default_rng(seed)
+
+    vhigh = np.abs(upper - lower)
+    vlow = -vhigh
+    x = lower + rng.random((swarmsize, len(lower))) * (upper - lower)
+    v = rng.uniform(vlow, vhigh, size=(swarmsize, len(lower)))
+    p = x.copy()
+    fp = objective.evaluate_many(x)  # uses objective pool when parallel is enabled
+    g_idx = int(np.argmin(fp))
+    g = p[g_idx].copy()
+    fg = float(fp[g_idx])
+    best_history = [fg]
+    mean_history = [float(np.mean(fp))]
+
+    for it in range(1, maxiter + 1):
+        rp = rng.uniform(size=(swarmsize, len(lower)))
+        rg = rng.uniform(size=(swarmsize, len(lower)))
+        v = omega * v + phip * rp * (p - x) + phig * rg * (g - x)
+        x = np.clip(x + v, lower, upper)
+
+        fx = objective.evaluate_many(x)
+        improve = fx < fp
+        p[improve] = x[improve]
+        fp[improve] = fx[improve]
+
+        i_min = int(np.argmin(fp))
+        if fp[i_min] < fg:
+            p_min = p[i_min].copy()
+            stepsize = float(np.sqrt(np.sum((g - p_min) ** 2)))
+            fdelta = float(np.abs(fg - fp[i_min]))
+            g = p_min
+            fg = float(fp[i_min])
+            if fdelta <= minfunc or stepsize <= minstep:
+                break
+        if debug:
+            print(f"[PSO] iter={it}, best={fg:.6f}")
+        best_history.append(float(fg))
+        mean_history.append(float(np.mean(fp)))
+
+    models = np.vstack([p, g.reshape(1, -1)])
+    misfits = np.concatenate([fp, np.array([fg], dtype=float)])
+    order = np.argsort(misfits)
+    models = models[order]
+    misfits = misfits[order]
+    df = pd.DataFrame(models, columns=get_parameter_names(cfg))
+    df["misfit"] = misfits
+    trace = {
+        "method": "pso",
+        "best_misfit_history": np.asarray(best_history, dtype=float),
+        "mean_misfit_history": np.asarray(mean_history, dtype=float),
+    }
+    return SearchResult(results=df, models=models, misfits=misfits, lower_bounds=lower, upper_bounds=upper, trace=trace)

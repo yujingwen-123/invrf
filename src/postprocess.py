@@ -145,13 +145,13 @@ def _tradeoff_pairs(cfg: Dict | None = None) -> list[tuple[str, str]]:
     mode = str((cfg or {}).get("model", {}).get("parameterization", "legacy")).lower()
     if mode == "classic_nainvrf":
         return [
-            ("H_sed1", "VpVs_sed1"),
+            ("H_sed", "K_sed"),
             ("H_c1", "VpVs_c1"),
             ("Vs_c3", "Vs_mantle"),
             ("VpVs_c3", "VpVs_mantle"),
         ]
     return [
-        ("H_sed", "VpVs_sed"),
+        ("H_sed", "K_sed"),
         ("H_moho", "VpVs_uc"),
         ("Vs_lc", "Vs_mantle"),
         ("VpVs_lc", "VpVs_mantle"),
@@ -212,8 +212,8 @@ def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 1
             g.H_moho + mantle_extra,
         ])
         vs = np.array([
-            pdict["Vs_sed1"],
-            pdict["Vs_sed2"],
+            pdict["Vs_sed0"],
+            pdict["Vs_sedz"],
             pdict["Vs_c1"],
             pdict["Vs_c2"],
             pdict["Vs_c3"],
@@ -221,7 +221,7 @@ def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 1
         ])
     else:
         depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
-        vs = np.array([pdict["Vs_sed1"], pdict["Vs_sed2"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
+        vs = np.array([pdict["Vs_sed0"], pdict["Vs_sedz"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
     x = [vs[0], vs[0]]
     y = [depths[0], depths[1]]
     for i in range(1, len(vs)):
@@ -246,6 +246,41 @@ def plot_search_velocity_family(search_results: pd.DataFrame, cfg: Dict, out_png
     ax.set_ylabel("Depth (km)")
     ax.legend(loc="lower left", frameon=True)
     ax.set_title("Search-stage velocity family")
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_pso_diagnostics(trace: Dict | None, out_png: Path) -> None:
+    if not trace or str(trace.get("method", "")).lower() != "pso":
+        return
+    best = np.asarray(trace.get("best_misfit_history", []), dtype=float)
+    mean = np.asarray(trace.get("mean_misfit_history", []), dtype=float)
+    if best.size == 0:
+        return
+
+    it = np.arange(best.size)
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.0))
+
+    axes[0].plot(it, best, color="crimson", lw=1.8, label="Global best misfit")
+    if mean.size == best.size:
+        axes[0].plot(it, mean, color="0.25", lw=1.3, ls="--", label="Swarm mean misfit")
+    axes[0].set_xlabel("Iteration")
+    axes[0].set_ylabel("Misfit")
+    axes[0].set_title("PSO convergence")
+    axes[0].legend(frameon=True)
+
+    improve = np.diff(best)
+    if improve.size > 0:
+        axes[1].plot(np.arange(1, best.size), improve, color="navy", lw=1.4)
+        axes[1].axhline(0.0, color="0.4", lw=0.9, ls="--")
+        axes[1].set_xlabel("Iteration")
+        axes[1].set_ylabel("Δ(best misfit)")
+        axes[1].set_title("PSO per-iteration improvement")
+    else:
+        axes[1].axis("off")
+
+    fig.suptitle("PSO search diagnostics", y=1.02)
     fig.tight_layout()
     fig.savefig(out_png, dpi=220, bbox_inches="tight")
     plt.close(fig)
