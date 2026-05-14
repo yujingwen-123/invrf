@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -53,6 +54,11 @@ def main() -> None:
     parser.add_argument("--best", default=None, help="Optional best/search csv path for plotting best model")
     parser.add_argument("--out", default=None, help="Output PNG path (default: <result_dir>/figures/posterior_velocity_density_from_naii.png)")
     parser.add_argument("--n-draw", type=int, default=1500, help="Max number of posterior samples to draw")
+    parser.add_argument(
+        "--blocky",
+        action="store_true",
+        help="Disable sediment/crust control-point interpolation for plotting (force layered/blocky Vs profiles).",
+    )
     args = parser.parse_args()
 
     root = Path(args.result_dir).expanduser().resolve()
@@ -84,9 +90,14 @@ def main() -> None:
     out_png = Path(args.out).expanduser().resolve() if args.out else (root / "figures" / "posterior_velocity_density_from_naii.png")
     out_png.parent.mkdir(parents=True, exist_ok=True)
 
+    plot_cfg = copy.deepcopy(cfg)
+    if args.blocky:
+        plot_cfg.setdefault("model", {})["sed_control_dz_km"] = 0.0
+        plot_cfg.setdefault("model", {})["crust_control_dz_km"] = 0.0
+
     plot_velocity_posterior_density(
         appraisal_samples=samples,
-        cfg=cfg,
+        cfg=plot_cfg,
         out_png=out_png,
         n_draw=max(1, int(args.n_draw)),
         best_model=best_model,
@@ -94,6 +105,9 @@ def main() -> None:
 
     print(f"[INFO] Samples: {samples_path}")
     print(f"[INFO] Output : {out_png}")
+    print(
+        "[INFO] Plot mode: blocky (no interpolation)" if args.blocky else "[INFO] Plot mode: interpolated (uses *_control_dz_km)"
+    )
     if best_model is not None:
         print("[INFO] Best model overlay: enabled")
 
