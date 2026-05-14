@@ -80,11 +80,11 @@ class JointRFObjective:
         mode = str(self.cfg.get("model", {}).get("parameterization", "legacy")).lower()
 
         if mode == "classic_nainvrf":
-            h_sed = pd["H_sed1"] + pd["H_sed2"]
+            h_sed = pd["H_sed"]
             h_moho = h_sed + pd["H_c1"] + pd["H_c2"] + pd["H_c3"]
-            k_sed = 0.5 * (pd["VpVs_sed1"] + pd["VpVs_sed2"])
+            k_sed = pd["K_sed"]
             k_crust = (
-                pd["VpVs_sed1"] * pd["H_sed1"] + pd["VpVs_sed2"] * pd["H_sed2"] +
+                pd["K_sed"] * h_sed +
                 pd["VpVs_c1"] * pd["H_c1"] + pd["VpVs_c2"] * pd["H_c2"] + pd["VpVs_c3"] * pd["H_c3"]
             ) / max(h_moho, 1e-6)
         else:
@@ -107,8 +107,7 @@ class JointRFObjective:
         if mode == "classic_nainvrf":
             terms.extend(
                 [
-                    (pd["H_sed1"], "H_sed1_center", "H_sed1_sigma"),
-                    (pd["H_sed2"], "H_sed2_center", "H_sed2_sigma"),
+                    (pd["H_sed"], "H_sed_center", "H_sed_sigma"),
                 ]
             )
         for value, center_key, sigma_key in terms:

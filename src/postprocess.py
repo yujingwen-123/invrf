@@ -145,7 +145,7 @@ def _tradeoff_pairs(cfg: Dict | None = None) -> list[tuple[str, str]]:
     mode = str((cfg or {}).get("model", {}).get("parameterization", "legacy")).lower()
     if mode == "classic_nainvrf":
         return [
-            ("H_sed1", "VpVs_sed1"),
+            ("H_sed", "K_sed"),
             ("H_c1", "VpVs_c1"),
             ("Vs_c3", "Vs_mantle"),
             ("VpVs_c3", "VpVs_mantle"),

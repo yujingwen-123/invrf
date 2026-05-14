@@ -109,8 +109,8 @@ def main() -> None:
     else:
         print("[INFO] Parallel disabled; serial evaluation will be used.")
 
+    method = str(cfg.get("search", {}).get("method", "na")).lower()
     try:
-        method = str(cfg.get("search", {}).get("method", "na")).lower()
         if method == "pso":
             print("[INFO] Running PSO search...")
             search = run_pso(cfg, objective)
@@ -139,7 +139,13 @@ def main() -> None:
     posterior_samples = None
     posterior_mean = None
     posterior_cov = None
-    if bool(cfg["appraisal"].get("enabled", True)):
+    appraisal_enabled = bool(cfg["appraisal"].get("enabled", True))
+    allow_with_pso = bool(cfg["appraisal"].get("allow_with_pso", False))
+    if method == "pso" and appraisal_enabled and not allow_with_pso:
+        print("[INFO] PSO mode detected: skipping NAII appraisal (set [appraisal].allow_with_pso=true to enable).")
+        appraisal_enabled = False
+
+    if appraisal_enabled:
         print("[INFO] Running NAII-style appraisal...")
         appraisal = run_appraisal_from_search(search, cfg)
         save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv", cfg)

@@ -27,7 +27,7 @@ def _require_cols(df: pd.DataFrame, cols: list[str]) -> None:
 
 
 def _detect_mode(df: pd.DataFrame) -> str:
-    if {"H_sed1", "H_sed2", "H_c1", "H_c2", "H_c3"}.issubset(df.columns):
+    if {"H_sed", "Vs_sed0", "Vs_sedz", "K_sed", "H_c1", "H_c2", "H_c3"}.issubset(df.columns):
         return "classic_nainvrf"
     if {"H_sed", "H_uc", "H_moho"}.issubset(df.columns):
         return "legacy"
@@ -39,15 +39,14 @@ def _derived_series(df: pd.DataFrame) -> dict[str, np.ndarray]:
     out: dict[str, np.ndarray] = {}
 
     if mode == "classic_nainvrf":
-        _require_cols(df, ["H_sed1", "H_sed2", "VpVs_sed1", "VpVs_sed2", "H_c1", "H_c2", "H_c3", "VpVs_c1", "VpVs_c2", "VpVs_c3"])
-        h_sed = df["H_sed1"].to_numpy() + df["H_sed2"].to_numpy()
+        _require_cols(df, ["H_sed", "K_sed", "H_c1", "H_c2", "H_c3", "VpVs_c1", "VpVs_c2", "VpVs_c3"])
+        h_sed = df["H_sed"].to_numpy()
         h_crust_no_sed = df["H_c1"].to_numpy() + df["H_c2"].to_numpy() + df["H_c3"].to_numpy()
         h_crust_total = h_sed + h_crust_no_sed
 
-        k_sed = 0.5 * (df["VpVs_sed1"].to_numpy() + df["VpVs_sed2"].to_numpy())
+        k_sed = df["K_sed"].to_numpy()
         k_crust_total = (
-            df["VpVs_sed1"].to_numpy() * df["H_sed1"].to_numpy()
-            + df["VpVs_sed2"].to_numpy() * df["H_sed2"].to_numpy()
+            df["K_sed"].to_numpy() * h_sed
             + df["VpVs_c1"].to_numpy() * df["H_c1"].to_numpy()
             + df["VpVs_c2"].to_numpy() * df["H_c2"].to_numpy()
             + df["VpVs_c3"].to_numpy() * df["H_c3"].to_numpy()
