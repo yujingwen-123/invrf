@@ -309,6 +309,7 @@ def plot_velocity_posterior_density(
     # backward-compatible aliases
     samples: np.ndarray | None = None,
     best_model: np.ndarray | None = None,
+    reference_model: np.ndarray | None = None,
     outpath: Path | None = None,
     **_ignored,
 ) -> None:
@@ -395,6 +396,14 @@ def plot_velocity_posterior_density(
             best_profile = model_to_depth_grid(np.asarray(best_model, dtype=float), cfg, z)
             if np.all(np.isfinite(best_profile)):
                 ax.plot(best_profile, z, color="forestgreen", lw=1.8, ls="--", label="Best model", zorder=4)
+        except Exception:
+            pass
+
+    if reference_model is not None:
+        try:
+            ref_profile = model_to_depth_grid(np.asarray(reference_model, dtype=float), cfg, z)
+            if np.all(np.isfinite(ref_profile)):
+                ax.plot(ref_profile, z, color="darkorange", lw=2.0, label="Reference model", zorder=5)
         except Exception:
             pass
 

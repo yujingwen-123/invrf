@@ -46,12 +46,25 @@ def _load_best_model(best_path: Path, cfg: dict) -> np.ndarray:
     return arr
 
 
+def _load_reference_model(ref_path: Path, cfg: dict) -> np.ndarray:
+    df = pd.read_csv(ref_path)
+    if df.empty:
+        raise ValueError(f"Reference-model csv is empty: {ref_path}")
+    row = df.iloc[0]
+    param_names = get_parameter_names(cfg)
+    missing = [name for name in param_names if name not in row.index]
+    if missing:
+        raise KeyError(f"Missing required reference-model columns in {ref_path}: {missing}")
+    return np.asarray([float(row[name]) for name in param_names], dtype=float)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot posterior Vs PDF from NAII results.")
     parser.add_argument("result_dir", help="Result root dir containing csv/ and figures/")
     parser.add_argument("--config", required=True, help="Path to station config TOML used by inversion")
     parser.add_argument("--samples", default=None, help="Posterior sample csv path (default: auto-find naii_samples_valid.csv)")
     parser.add_argument("--best", default=None, help="Optional best/search csv path for plotting best model")
+    parser.add_argument("--ref-model", default=None, help="Optional reference/true-model csv path for plotting real model")
     parser.add_argument("--out", default=None, help="Output PNG path (default: <result_dir>/figures/posterior_velocity_density_from_naii.png)")
     parser.add_argument("--n-draw", type=int, default=1500, help="Max number of posterior samples to draw")
     parser.add_argument(
@@ -86,6 +99,9 @@ def main() -> None:
                 best_model = _load_best_model(best_path, cfg)
             except Exception:
                 best_model = None
+    reference_model = None
+    if args.ref_model:
+        reference_model = _load_reference_model(Path(args.ref_model).expanduser().resolve(), cfg)
 
     out_png = Path(args.out).expanduser().resolve() if args.out else (root / "figures" / "posterior_velocity_density_from_naii.png")
     out_png.parent.mkdir(parents=True, exist_ok=True)
@@ -101,6 +117,7 @@ def main() -> None:
         out_png=out_png,
         n_draw=max(1, int(args.n_draw)),
         best_model=best_model,
+        reference_model=reference_model,
     )
 
     print(f"[INFO] Samples: {samples_path}")
@@ -110,6 +127,8 @@ def main() -> None:
     )
     if best_model is not None:
         print("[INFO] Best model overlay: enabled")
+    if reference_model is not None:
+        print("[INFO] Reference model overlay: enabled")
 
 
 if __name__ == "__main__":
