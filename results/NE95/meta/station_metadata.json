@@ -1,6 +1,6 @@
 {
   "station": "NE95",
-  "config": "/home/jak123/git_test_work/invrf/config/station_template.toml",
+  "config": "/home/jak123/work/tarim/check/invrf/config/station_template.toml",
   "n_loaded": 125,
   "n_missing": 0,
   "n_bins": 5

@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+
 DEFAULT_PRIORITY = [
-    "H_sed", "Vs_sed0", "Vs_sedz", "K_sed",
+    "H_sed", "sed_ratio1", "Vs_sed1", "Vs_sed2", "VpVs_sed",
     "H_uc", "Vs_uc", "VpVs_uc", "H_moho", "Vs_lc", "VpVs_lc",
     "Vs_mantle", "VpVs_mantle",
 ]
@@ -49,10 +50,10 @@ def _load_samples(samples_path: Path) -> pd.DataFrame:
     return num
 
 
-def _load_best_from_posterior(samples_path: Path, params: Sequence[str]) -> np.ndarray | None:
-    if not samples_path.exists():
+def _load_best(search_path: Path | None, params: Sequence[str]) -> np.ndarray | None:
+    if search_path is None or not search_path.exists():
         return None
-    df = pd.read_csv(samples_path)
+    df = pd.read_csv(search_path)
     if "misfit" in df.columns:
         row = df.loc[df["misfit"].idxmin()]
     else:
@@ -115,23 +116,20 @@ def _choose_params(df: pd.DataFrame, params_arg: Sequence[str] | None, max_param
     return selected
 
 
-def _ranges_from_samples(df: pd.DataFrame, params: Sequence[str], pad_fraction: float = 0.05) -> list[tuple[float, float]]:
-    ranges: list[tuple[float, float]] = []
-    for p in params:
-        vals = pd.to_numeric(df[p], errors="coerce").to_numpy(dtype=float)
-        vals = vals[np.isfinite(vals)]
-        if vals.size == 0:
-            raise ValueError(f"No finite values for parameter '{p}' in samples.")
-        lo = float(np.min(vals))
-        hi = float(np.max(vals))
+def _ranges_from_samples(arr: np.ndarray, qlo: float = 0.2, qhi: float = 99.8, pad_frac: float = 0.08):
+    ranges = []
+    for j in range(arr.shape[1]):
+        x = arr[:, j]
+        lo = np.nanpercentile(x, qlo)
+        hi = np.nanpercentile(x, qhi)
+        if not np.isfinite(lo) or not np.isfinite(hi):
+            lo = np.nanmin(x)
+            hi = np.nanmax(x)
         if lo == hi:
             lo -= 0.5
             hi += 0.5
-        else:
-            pad = (hi - lo) * float(pad_fraction)
-            lo -= pad
-            hi += pad
-        ranges.append((lo, hi))
+        pad = pad_frac * (hi - lo)
+        ranges.append((lo - pad, hi + pad))
     return ranges
 
 
@@ -149,7 +147,6 @@ def plot_appraisal_corner(
     figsize_per_dim: float = 1.5,
     hist_lw: float = 1.0,
     title: str | None = None,
-    ranges: Sequence[tuple[float, float]] | None = None,
 ) -> None:
     arr = samples_df.loc[:, params].to_numpy(dtype=float)
 
@@ -167,8 +164,7 @@ def plot_appraisal_corner(
         arr_plot = arr
 
     n = len(params)
-    if ranges is None:
-        raise ValueError("ranges must be provided from config bounds.")
+    ranges = _ranges_from_samples(arr)
     fig, axes = plt.subplots(n, n, figsize=(figsize_per_dim * n, figsize_per_dim * n), squeeze=False)
 
     # style
@@ -199,7 +195,6 @@ def plot_appraisal_corner(
 
                 ax.set_xlim(ranges[j])
                 ax.set_yticks([])
-                ax.set_title(params[j], fontsize=9, pad=2)
             else:
                 x = arr_plot[:, j]
                 y = arr_plot[:, i]
@@ -215,12 +210,16 @@ def plot_appraisal_corner(
                 ax.set_xlim(ranges[j])
                 ax.set_ylim(ranges[i])
 
-            ax.set_xlabel("")
-            ax.set_ylabel("")
-            if i != n - 1:
+            if i == n - 1:
+                ax.set_xlabel(params[j], fontsize=9)
+            else:
                 ax.set_xticklabels([])
-            if i != j:
-                ax.set_yticklabels([])
+
+            if j == 0 and i > 0:
+                ax.set_ylabel(params[i], fontsize=9)
+            else:
+                if i != j:
+                    ax.set_yticklabels([])
 
             ax.tick_params(axis="both", labelsize=8, length=2.5, pad=1.5)
 
@@ -260,6 +259,11 @@ def main() -> None:
         "--samples",
         default=None,
         help="Override appraisal sample file. Defaults to csv/naii_samples_valid.csv or csv/naii_samples.csv."
+    )
+    parser.add_argument(
+        "--search",
+        default=None,
+        help="Override search result file. Defaults to csv/na_search_results.csv."
     )
     parser.add_argument(
         "--summary",
@@ -307,20 +311,22 @@ def main() -> None:
     if samples_path is None:
         raise FileNotFoundError("Could not find appraisal sample file under result_dir/csv/")
 
+    search_path = Path(args.search).expanduser().resolve() if args.search else _auto_find_file(
+        root, ["na_search_results.csv", "search_results.csv"]
+    )
     summary_path = Path(args.summary).expanduser().resolve() if args.summary else _auto_find_file(
         root, ["appraisal_summary.csv", "posterior_summary.csv"]
     )
 
     samples_df = _load_samples(samples_path)
     params = _choose_params(samples_df, args.params, args.max_params)
-    ranges = _ranges_from_samples(samples_df, params)
 
     posterior_mean, _ = _load_summary_means(summary_path, params)
     if posterior_mean is None:
         posterior_mean = samples_df.loc[:, params].mean().to_numpy(dtype=float)
 
     posterior_median = samples_df.loc[:, params].median().to_numpy(dtype=float)
-    best = _load_best_from_posterior(samples_path, params)
+    best = _load_best(search_path, params)
 
     outpath = Path(args.out).expanduser().resolve() if args.out else (root / "figures" / "posterior_corner.png")
     outpath.parent.mkdir(parents=True, exist_ok=True)
@@ -335,10 +341,10 @@ def main() -> None:
         bins=args.bins,
         max_scatter_points=args.max_scatter,
         title="Posterior appraisal parameter corner plot",
-        ranges=ranges,
     )
 
     print(f"[INFO] Samples file : {samples_path}")
+    print(f"[INFO] Search file  : {search_path if search_path else 'None'}")
     print(f"[INFO] Summary file : {summary_path if summary_path else 'None'}")
     print(f"[INFO] Params       : {params}")
     print(f"[INFO] Output       : {outpath}")

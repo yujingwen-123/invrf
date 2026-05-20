@@ -1,0 +1,7 @@
+{
+  "station": "syn1",
+  "config": "/home/jak123/work/tarim/check/md1/invrf/config/station_template.toml",
+  "n_loaded": 103,
+  "n_missing": 0,
+  "n_bins": 9
+}

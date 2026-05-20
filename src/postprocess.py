@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
-from .model import get_parameter_names, model_to_depth_grid, params_to_dict, params_to_geometry, row_to_params
+from .model import PARAMETER_NAMES, model_to_depth_grid, params_to_dict, params_to_geometry, row_to_params
 from .pbin import PBin
 
 plt.rcParams.update(
@@ -68,15 +68,15 @@ def save_search_results(search_df: pd.DataFrame, path: Path) -> None:
     search_df.to_csv(path, index=False)
 
 
-def save_appraisal_samples(samples: np.ndarray, path: Path, cfg: Dict) -> None:
-    pd.DataFrame(samples, columns=get_parameter_names(cfg)).to_csv(path, index=False)
+def save_appraisal_samples(samples: np.ndarray, path: Path) -> None:
+    pd.DataFrame(samples, columns=PARAMETER_NAMES).to_csv(path, index=False)
 
 
-def summarize_search(search_df: pd.DataFrame, cfg: Dict, top_fraction: float = 0.10) -> pd.DataFrame:
+def summarize_search(search_df: pd.DataFrame, top_fraction: float = 0.10) -> pd.DataFrame:
     n_top = max(5, int(np.ceil(len(search_df) * top_fraction)))
     top = search_df.nsmallest(n_top, "misfit")
     rows = []
-    for name in get_parameter_names(cfg):
+    for name in PARAMETER_NAMES:
         rows.append(
             {
                 "parameter": name,
@@ -88,9 +88,9 @@ def summarize_search(search_df: pd.DataFrame, cfg: Dict, top_fraction: float = 0
     return pd.DataFrame(rows)
 
 
-def summarize_appraisal(samples: np.ndarray, mean: np.ndarray, cov: np.ndarray, cfg: Dict) -> pd.DataFrame:
+def summarize_appraisal(samples: np.ndarray, mean: np.ndarray, cov: np.ndarray) -> pd.DataFrame:
     std = np.sqrt(np.diag(cov)) if np.ndim(cov) == 2 else np.full(len(mean), np.nan)
-    return pd.DataFrame({"parameter": get_parameter_names(cfg), "posterior_mean": mean, "posterior_std": std})
+    return pd.DataFrame({"parameter": PARAMETER_NAMES, "posterior_mean": mean, "posterior_std": std})
 
 
 def plot_pbin_stacks(bins: List[PBin], time: np.ndarray, out_png: Path) -> None:
@@ -141,25 +141,17 @@ def plot_best_fit_bins(bins: List[PBin], syns: List[np.ndarray], time: np.ndarra
     plt.close(fig)
 
 
-def _tradeoff_pairs(cfg: Dict | None = None) -> list[tuple[str, str]]:
-    mode = str((cfg or {}).get("model", {}).get("parameterization", "legacy")).lower()
-    if mode == "classic_nainvrf":
-        return [
-            ("H_sed", "K_sed"),
-            ("H_c1", "VpVs_c1"),
-            ("Vs_c3", "Vs_mantle"),
-            ("VpVs_c3", "VpVs_mantle"),
-        ]
+def _tradeoff_pairs() -> list[tuple[str, str]]:
     return [
-        ("H_sed", "K_sed"),
+        ("H_sed", "VpVs_sed"),
         ("H_moho", "VpVs_uc"),
         ("Vs_lc", "Vs_mantle"),
         ("VpVs_lc", "VpVs_mantle"),
     ]
 
 
-def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fraction: float = 0.10, cfg: Dict | None = None) -> None:
-    pairs = _tradeoff_pairs(cfg)
+def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fraction: float = 0.10) -> None:
+    pairs = _tradeoff_pairs()
     n_top = max(10, int(np.ceil(len(search_results) * top_fraction)))
     top = search_results.nsmallest(n_top, "misfit")
     best = search_results.iloc[0]
@@ -176,12 +168,12 @@ def plot_search_tradeoffs(search_results: pd.DataFrame, out_png: Path, top_fract
     plt.close(fig)
 
 
-def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np.ndarray, appraisal_mean: np.ndarray, out_png: Path, cfg: Dict | None = None) -> None:
-    pairs = _tradeoff_pairs(cfg)
+def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np.ndarray, appraisal_mean: np.ndarray, out_png: Path) -> None:
+    pairs = _tradeoff_pairs()
     best = row_to_params(search_results.iloc[0])
-    best_d = params_to_dict(best, cfg)
-    mean_d = params_to_dict(appraisal_mean, cfg)
-    dfp = pd.DataFrame(appraisal_samples, columns=search_results.columns[:-1])
+    best_d = params_to_dict(best)
+    mean_d = params_to_dict(appraisal_mean)
+    dfp = pd.DataFrame(appraisal_samples, columns=PARAMETER_NAMES)
     fig, axes = plt.subplots(1, len(pairs), figsize=(15.5, 3.8))
     for ax, (xcol, ycol) in zip(axes, pairs):
         ax.scatter(dfp[xcol], dfp[ycol], s=5, c="black", alpha=0.08, edgecolors="none")
@@ -199,29 +191,9 @@ def plot_posterior_tradeoffs(search_results: pd.DataFrame, appraisal_samples: np
 
 def _velocity_step_arrays(params: np.ndarray, cfg: Dict, mantle_extra: float = 15.0) -> tuple[np.ndarray, np.ndarray]:
     g = params_to_geometry(params, cfg)
-    pdict = params_to_dict(params, cfg)
-    mode = str(cfg.get("model", {}).get("parameterization", "legacy")).lower()
-    if mode == "classic_nainvrf":
-        depths = np.array([
-            0.0,
-            g.h_sed1,
-            g.h_sed1 + g.h_sed2,
-            g.h_sed1 + g.h_sed2 + pdict["H_c1"],
-            g.h_sed1 + g.h_sed2 + pdict["H_c1"] + pdict["H_c2"],
-            g.H_moho,
-            g.H_moho + mantle_extra,
-        ])
-        vs = np.array([
-            pdict["Vs_sed0"],
-            pdict["Vs_sedz"],
-            pdict["Vs_c1"],
-            pdict["Vs_c2"],
-            pdict["Vs_c3"],
-            pdict["Vs_mantle"],
-        ])
-    else:
-        depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
-        vs = np.array([pdict["Vs_sed0"], pdict["Vs_sedz"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
+    pdict = params_to_dict(params)
+    depths = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, g.H_moho + mantle_extra])
+    vs = np.array([pdict["Vs_sed1"], pdict["Vs_sed2"], pdict["Vs_uc"], pdict["Vs_lc"], pdict["Vs_mantle"]])
     x = [vs[0], vs[0]]
     y = [depths[0], depths[1]]
     for i in range(1, len(vs)):
@@ -251,41 +223,6 @@ def plot_search_velocity_family(search_results: pd.DataFrame, cfg: Dict, out_png
     plt.close(fig)
 
 
-def plot_pso_diagnostics(trace: Dict | None, out_png: Path) -> None:
-    if not trace or str(trace.get("method", "")).lower() != "pso":
-        return
-    best = np.asarray(trace.get("best_misfit_history", []), dtype=float)
-    mean = np.asarray(trace.get("mean_misfit_history", []), dtype=float)
-    if best.size == 0:
-        return
-
-    it = np.arange(best.size)
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.0))
-
-    axes[0].plot(it, best, color="crimson", lw=1.8, label="Global best misfit")
-    if mean.size == best.size:
-        axes[0].plot(it, mean, color="0.25", lw=1.3, ls="--", label="Swarm mean misfit")
-    axes[0].set_xlabel("Iteration")
-    axes[0].set_ylabel("Misfit")
-    axes[0].set_title("PSO convergence")
-    axes[0].legend(frameon=True)
-
-    improve = np.diff(best)
-    if improve.size > 0:
-        axes[1].plot(np.arange(1, best.size), improve, color="navy", lw=1.4)
-        axes[1].axhline(0.0, color="0.4", lw=0.9, ls="--")
-        axes[1].set_xlabel("Iteration")
-        axes[1].set_ylabel("Δ(best misfit)")
-        axes[1].set_title("PSO per-iteration improvement")
-    else:
-        axes[1].axis("off")
-
-    fig.suptitle("PSO search diagnostics", y=1.02)
-    fig.tight_layout()
-    fig.savefig(out_png, dpi=220, bbox_inches="tight")
-    plt.close(fig)
-
-
 def _centers_to_edges(x: np.ndarray) -> np.ndarray:
     x = np.asarray(x, dtype=float)
     if x.ndim != 1 or x.size < 2:
@@ -309,7 +246,6 @@ def plot_velocity_posterior_density(
     # backward-compatible aliases
     samples: np.ndarray | None = None,
     best_model: np.ndarray | None = None,
-    reference_model: np.ndarray | None = None,
     outpath: Path | None = None,
     **_ignored,
 ) -> None:
@@ -396,14 +332,6 @@ def plot_velocity_posterior_density(
             best_profile = model_to_depth_grid(np.asarray(best_model, dtype=float), cfg, z)
             if np.all(np.isfinite(best_profile)):
                 ax.plot(best_profile, z, color="forestgreen", lw=1.8, ls="--", label="Best model", zorder=4)
-        except Exception:
-            pass
-
-    if reference_model is not None:
-        try:
-            ref_profile = model_to_depth_grid(np.asarray(reference_model, dtype=float), cfg, z)
-            if np.all(np.isfinite(ref_profile)):
-                ax.plot(ref_profile, z, color="darkorange", lw=2.0, label="Reference model", zorder=5)
         except Exception:
             pass
 

@@ -9,8 +9,8 @@ import numpy as np
 from src.appraisal import run_appraisal_from_search
 from src.config import ensure_output_dirs, load_config
 from src.finallist import parse_finallist
-from src.inversion import JointRFObjective, run_na, run_pso
-from src.model import get_parameter_names, params_to_velocity_model, row_to_params
+from src.inversion import JointRFObjective, run_na
+from src.model import PARAMETER_NAMES, params_to_velocity_model, row_to_params
 from src.pbin import build_pbin_stacks
 """
 from src.postprocess import (
@@ -62,7 +62,6 @@ def main() -> None:
         plot_posterior_tradeoffs,
         plot_search_tradeoffs,
         plot_search_velocity_family,
-        plot_pso_diagnostics,
         plot_velocity_posterior_density,
         save_appraisal_samples,
         save_pbin_table,
@@ -109,20 +108,14 @@ def main() -> None:
     else:
         print("[INFO] Parallel disabled; serial evaluation will be used.")
 
-    method = str(cfg.get("search", {}).get("method", "na")).lower()
     try:
-        if method == "pso":
-            print("[INFO] Running PSO search...")
-            search = run_pso(cfg, objective)
-        else:
-            print("[INFO] Running NA search...")
-            search = run_na(cfg, objective)
+        search = run_na(cfg, objective)
     finally:
         objective.close()
 
     save_search_results(search.results, out["csv"] / "na_search_results.csv")
     top_fraction = float(cfg["na"].get("top_fraction", 0.10))
-    summarize_search(search.results, cfg, top_fraction=top_fraction).to_csv(out["csv"] / "search_summary.csv", index=False)
+    summarize_search(search.results, top_fraction=top_fraction).to_csv(out["csv"] / "search_summary.csv", index=False)
 
     best = search.results.iloc[0]
     best_params = row_to_params(best)
@@ -130,31 +123,23 @@ def main() -> None:
     plot_best_fit_bins(bins, syns, time, out["figures"] / "bestfit_bins.png")
 
     # Search-stage diagnostic figures only.
-    plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction, cfg=cfg)
+    plot_search_tradeoffs(search.results, out["figures"] / "search_tradeoffs.png", top_fraction=top_fraction)
     plot_search_velocity_family(search.results, cfg, out["figures"] / "search_velocity_family.png", top_fraction=top_fraction)
-    if search.trace is not None and str(search.trace.get("method", "")).lower() == "pso":
-        plot_pso_diagnostics(search.trace, out["figures"] / "pso_diagnostics.png")
 
     appraisal = None
     posterior_samples = None
     posterior_mean = None
     posterior_cov = None
-    appraisal_enabled = bool(cfg["appraisal"].get("enabled", True))
-    allow_with_pso = bool(cfg["appraisal"].get("allow_with_pso", False))
-    if method == "pso" and appraisal_enabled and not allow_with_pso:
-        print("[INFO] PSO mode detected: skipping NAII appraisal (set [appraisal].allow_with_pso=true to enable).")
-        appraisal_enabled = False
-
-    if appraisal_enabled:
+    if bool(cfg["appraisal"].get("enabled", True)):
         print("[INFO] Running NAII-style appraisal...")
         appraisal = run_appraisal_from_search(search, cfg)
-        save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv", cfg)
+        save_appraisal_samples(appraisal.samples, out["csv"] / "naii_samples_raw.csv")
 
         posterior_samples = filter_valid_samples(appraisal.samples, cfg)
         n_total = len(appraisal.samples)
         n_valid = len(posterior_samples)
         print(f"[INFO] Appraisal valid samples: {n_valid}/{n_total} ({100.0 * n_valid / max(n_total, 1):.1f}%)")
-        save_appraisal_samples(posterior_samples, out["csv"] / "naii_samples_valid.csv", cfg)
+        save_appraisal_samples(posterior_samples, out["csv"] / "naii_samples_valid.csv")
 
         posterior_mean = np.mean(posterior_samples, axis=0)
         if len(posterior_samples) > 1:
@@ -162,7 +147,7 @@ def main() -> None:
         else:
             posterior_cov = np.full((posterior_samples.shape[1], posterior_samples.shape[1]), np.nan)
 
-        summarize_appraisal(posterior_samples, posterior_mean, posterior_cov, cfg).to_csv(
+        summarize_appraisal(posterior_samples, posterior_mean, posterior_cov).to_csv(
             out["csv"] / "appraisal_summary.csv", index=False
         )
 
@@ -171,7 +156,6 @@ def main() -> None:
             appraisal_samples=posterior_samples,
             appraisal_mean=posterior_mean,
             out_png=out["figures"] / "posterior_tradeoffs.png",
-            cfg=cfg,
         )
         plot_velocity_posterior_density(
             search_results=search.results,
@@ -190,7 +174,7 @@ def main() -> None:
             f.write(f"Appraisal n_walkers: {appraisal.n_walkers}\n")
             f.write(f"Appraisal raw samples: {len(appraisal.samples)}\n")
             f.write(f"Appraisal valid samples: {len(posterior_samples)}\n")
-        for name in get_parameter_names(cfg):
+        for name in PARAMETER_NAMES:
             f.write(f"{name}: {best[name]:.6f}\n")
 
     print("[INFO] Done.")

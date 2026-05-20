@@ -38,14 +38,3 @@ def nrmse_misfit(obs: np.ndarray, syn: np.ndarray) -> float:
 
 def combined_misfit(obs: np.ndarray, syn: np.ndarray, w_cc: float, w_nrmse: float) -> float:
     return float(w_cc) * cc_misfit(obs, syn) + float(w_nrmse) * nrmse_misfit(obs, syn)
-
-
-def rms_misfit(obs: np.ndarray, syn: np.ndarray) -> float:
-    return nrmse_misfit(obs, syn)
-
-
-def misfit_value(obs: np.ndarray, syn: np.ndarray, cfg: dict, w_cc: float, w_nrmse: float) -> float:
-    mode = str(cfg.get("misfit", {}).get("mode", "weighted_l2")).lower()
-    if mode in {"rsm+cc", "rms+cc", "cc+rms"}:
-        return combined_misfit(obs, syn, w_cc, w_nrmse)
-    return nrmse_misfit(obs, syn)
