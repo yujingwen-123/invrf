@@ -14,7 +14,7 @@ from src.model import model_to_depth_grid, params_to_velocity_model
 
 def _auto_find_search_csv(result_dir: Path) -> Path:
     candidates = [
-        result_dir / "csv" / "search_results.csv",
+        result_dir / "csv" / "na_search_results.csv",
         result_dir / "search_results.csv",
         result_dir / "csv" / "models.csv",
     ]

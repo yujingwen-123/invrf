@@ -1,0 +1,19 @@
+Station: NE68
+Search minimum misfit: 43.026800
+Appraisal temperature: 0.647810
+Appraisal n_resample: 75000
+Appraisal n_walkers: 15
+Appraisal raw samples: 75000
+Appraisal valid samples: 70241
+H_sed: 0.674735
+Vs_sed0: 0.825959
+Vs_sedz: 2.710899
+K_sed: 2.193682
+H_uc: 25.000000
+Vs_uc: 3.811557
+VpVs_uc: 1.634101
+H_moho: 37.755382
+Vs_lc: 3.983952
+VpVs_lc: 1.900000
+Vs_mantle: 4.611508
+VpVs_mantle: 1.754377

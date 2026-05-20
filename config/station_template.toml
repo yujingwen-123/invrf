@@ -1,9 +1,9 @@
 [station]
-name = "NE68"
-finallist = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE68/YP.NE68finallist.dat"
-rf_dir = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE68"
+name = "NE95"
+finallist = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE95/YP.NE95finallist.dat"
+rf_dir = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE95"
 rf_pattern = "{rf_dir}/{event_id}_P_R.sac"
-out_dir = "./results/NE68"
+out_dir = "./results/NE95"
 
 [data]
 dt = 0.05
@@ -42,22 +42,22 @@ plot_depth_max = 70.0
 plot_depth_dz = 0.25
 plot_vs_bins = 140
 sed_control_dz_km = 0.5
-crust_control_dz_km = 1.0
+crust_control_dz_km = 0
 
 [priors]
 enabled = true  # false: no prior constraint, only bounds
-H_sed_center = 1.5
-H_sed_sigma = 1.5
+H_sed_center = 3.5
+H_sed_sigma = 1.0
 Vs_mantle_center = 4.60
 Vs_mantle_sigma = 0.15
 VpVs_mantle_center = 1.78
 VpVs_mantle_sigma = 0.05
-K_sed_center = 2.20
+K_sed_center = 2.30
 K_sed_sigma = 0.20
-H_crust_center = 36.0
-H_crust_sigma = 4.0
-K_crust_center = 1.75
-K_crust_sigma = 0.08
+H_crust_center = 30.0
+H_crust_sigma = 2.0
+K_crust_center = 1.71
+K_crust_sigma = 0.05
 
 [misfit]
 mode = "weighted_l2"  # weighted_l2 | rms+cc
@@ -72,7 +72,7 @@ n_initial = 5000
 n_samples = 200
 n_resample = 50
 n_iterations = 100
-top_fraction = 0.25
+top_fraction = 0.20
 seed = 20260422
 
 [search]
@@ -111,14 +111,14 @@ start_method = "spawn"
 maxtasksperchild = 0
 
 [bounds]
-H_sed = [0, 2]
-Vs_sed0 = [0.5, 3.00]
-Vs_sedz = [1.50, 3.50]
-K_sed = [1.80, 3.5]
+H_sed = [2, 6]
+Vs_sed0 = [0.5, 2.00]
+Vs_sedz = [2.00, 3.50]
+K_sed = [2.0, 3.0]
 H_uc = [15.0, 25.0]
 Vs_uc = [3.20, 3.90]
 VpVs_uc = [1.55, 1.85]
-H_moho = [30.0, 40.0]
+H_moho = [25.0, 35.0]
 Vs_lc = [3.60, 4.50]
 VpVs_lc = [1.65, 1.90]
 Vs_mantle = [4.40, 4.90]

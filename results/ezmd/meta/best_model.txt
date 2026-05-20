@@ -1,0 +1,20 @@
+Station: ezmd
+Search minimum misfit: 39.835794
+Appraisal temperature: 3.093794
+Appraisal n_resample: 75000
+Appraisal n_walkers: 15
+Appraisal raw samples: 75000
+Appraisal valid samples: 65349
+H_sed: 8.235415
+sed_ratio1: 0.131364
+Vs_sed1: 1.098539
+Vs_sed2: 1.907777
+VpVs_sed: 1.915258
+H_uc: 16.368400
+Vs_uc: 3.200000
+VpVs_uc: 1.700926
+H_moho: 43.810650
+Vs_lc: 3.634663
+VpVs_lc: 1.747175
+Vs_mantle: 4.536027
+VpVs_mantle: 1.769754

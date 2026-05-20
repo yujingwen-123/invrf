@@ -1,0 +1,129 @@
+[station]
+name = "NE68"
+finallist = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE68/YP.NE68finallist.dat"
+rf_dir = "/home/jak123/work/tarim/test/necess/calrf/1.0/NE68"
+rf_pattern = "{rf_dir}/{event_id}_P_R.sac"
+out_dir = "./results/NE68"
+
+[data]
+dt = 0.05
+time_start = -2.0
+time_end = 30.0
+preonset_fallback = 10.0
+remove_mean = false
+remove_trend = false
+apply_filter = false
+apply_taper = false
+freqmin = 0.05
+freqmax = 2.00
+filter_order = 2
+zerophase = false
+time_reference = "b"
+baseline_correct = false
+baseline_tmin = -2.0
+baseline_tmax = -0.2
+normalize = "none"
+norm_tmin = -1.0
+norm_tmax = 8.0
+gaussian = 1.0
+
+[pbin]
+width = 0.005
+step = 0.005
+min_events = 10
+stack_method = "mean"
+
+[model]
+parameterization = "classic_nainvrf"  # legacy | classic_nainvrf
+mantle_extra_depth = 80.0
+min_lower_crust_thickness = 5.0
+plot_depth_max = 70.0
+plot_depth_dz = 0.25
+plot_vs_bins = 140
+sed_control_dz_km = 0.5
+crust_control_dz_km = 1.0
+
+[priors]
+enabled = true  # false: no prior constraint, only bounds
+H_sed_center = 1.5
+H_sed_sigma = 1.5
+Vs_mantle_center = 4.60
+Vs_mantle_sigma = 0.15
+VpVs_mantle_center = 1.78
+VpVs_mantle_sigma = 0.05
+K_sed_center = 2.20
+K_sed_sigma = 0.20
+H_crust_center = 36.0
+H_crust_sigma = 4.0
+K_crust_center = 1.75
+K_crust_sigma = 0.08
+
+[misfit]
+mode = "weighted_l2"  # weighted_l2 | rms+cc
+
+[weights]
+cc = 0.2
+nrmse = 0.8
+prior = 1.0
+
+[na]
+n_initial = 50
+n_samples = 10
+n_resample = 5
+n_iterations = 10
+top_fraction = 0.45
+seed = 20260422
+
+[appraisal]
+enabled = true
+n_resample = 500
+n_walkers = 5
+start_fraction = 0.25
+verbose = false
+seed = 20260422
+temperature_mode = "best_iqr"
+temperature = 0.01
+temperature_top_fraction = 0.10
+temperature_min = 0.001
+
+[parallel]
+enabled = true
+n_workers = 0
+chunksize = 3
+start_method = "spawn"
+maxtasksperchild = 0
+
+[bounds]
+H_sed = [0, 2]
+sed_ratio1 = [0.10, 0.80]
+Vs_sed1 = [0.5, 3.00]
+Vs_sed2 = [1.50, 3.50]
+VpVs_sed = [1.80, 3.5]
+H_uc = [15.0, 25.0]
+Vs_uc = [3.20, 3.90]
+VpVs_uc = [1.55, 1.85]
+H_moho = [30.0, 40.0]
+Vs_lc = [3.60, 4.50]
+VpVs_lc = [1.65, 1.90]
+Vs_mantle = [4.40, 4.90]
+VpVs_mantle = [1.75, 1.90]
+
+
+[bounds_classic_nainvrf]
+H_sed1=[0.00,2.00]
+H_sed2=[0.00,3.00]
+Vs_sed1=[1.75,3.00]
+Vs_sed2=[1.50,3.50]
+VpVs_sed1=[1.75,3.00]
+VpVs_sed2=[1.50,3.50]
+H_c1=[1.00,15.00]
+H_c2=[5.00,20.00]
+H_c3=[5.00,30.00]
+Vs_c1=[2.60,3.60]
+Vs_c2=[3.20,4.50]
+Vs_c3=[4.00,5.00]
+VpVs_c1=[1.65,1.80]
+VpVs_c2=[1.65,1.80]
+VpVs_c3=[1.70,1.90]
+Vs_mantle=[4.00,5.00]
+VpVs_mantle=[1.70,1.90]
