@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Dict
 
 import numpy as np
@@ -45,29 +46,37 @@ def synthetic_rf_for_rayp(params: np.ndarray, rayp: float, target_time: np.ndarr
     npts = len(target_time)
     preonset = max(0.0, -time_start)
 
-    synth = synrf(
-        vm.interfaces_km,
-        vm.vp_km_s,
-        vm.vs_km_s,
-        vm.rho_g_cm3,
-        float(rayp),
-        dt=dt,
-        npts=npts,
-        ipha=1,
-    )
-    synth.run_fwd()
-    if bool(cfg["data"].get("apply_filter", False)):
-        synth.filter(
-            freqmin=float(cfg["data"]["freqmin"]),
-            freqmax=float(cfg["data"]["freqmax"]),
-            order=int(cfg["data"].get("filter_order", 2)),
-            zerophase=bool(cfg["data"].get("zerophase", True)),
-        )
-    rf = synth.run_deconvolution(
-        pre_filt=[float(cfg["data"].get("freqmin", 0.05)), float(cfg["data"].get("freqmax", 1.25))],
-        preonset=preonset,
-        gaussian=float(cfg["data"].get("gaussian", 1.25)),
-    )
+    try:
+        with warnings.catch_warnings():
+            # rfsed can emit RuntimeWarning for non-physical combinations
+            # (e.g., invalid sqrt/divide in propagator terms). Treat these as
+            # invalid forward models and skip them cleanly.
+            warnings.simplefilter("error", RuntimeWarning)
+            synth = synrf(
+                vm.interfaces_km,
+                vm.vp_km_s,
+                vm.vs_km_s,
+                vm.rho_g_cm3,
+                float(rayp),
+                dt=dt,
+                npts=npts,
+                ipha=1,
+            )
+            synth.run_fwd()
+            if bool(cfg["data"].get("apply_filter", False)):
+                synth.filter(
+                    freqmin=float(cfg["data"]["freqmin"]),
+                    freqmax=float(cfg["data"]["freqmax"]),
+                    order=int(cfg["data"].get("filter_order", 2)),
+                    zerophase=bool(cfg["data"].get("zerophase", True)),
+                )
+            rf = synth.run_deconvolution(
+                pre_filt=[float(cfg["data"].get("freqmin", 0.05)), float(cfg["data"].get("freqmax", 1.25))],
+                preonset=preonset,
+                gaussian=float(cfg["data"].get("gaussian", 1.25)),
+            )
+    except RuntimeWarning:
+        return np.full_like(target_time, np.nan, dtype=float)
     tr = rf[0]
     syn_time = np.arange(tr.stats.npts, dtype=float) * tr.stats.delta - preonset
     syn_data = np.asarray(tr.data, dtype=float)
