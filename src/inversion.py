@@ -85,39 +85,33 @@ class JointRFObjective:
         self.parallel_enabled = False
 
     def prior_penalty(self, params: np.ndarray) -> float:
+        """Gaussian prior penalty:
+        alpha * [((H_sed-H_sed0)/sigma_Hsed)^2 + ((H_moho-H_moho0)/sigma_Hmoho)^2 + beta*((k-k0)/sigma_k)^2]
+        where k is travel-time-average whole-crust Vp/Vs.
+        """
         pri = self.cfg["priors"]
+        w = self.cfg.get("weights", {})
+        alpha = float(w.get("prior", 1.0))
+        beta = float(w.get("k", 0.5))
         pd = params_to_dict(params)
+
         penalty = 0.0
-        # Gaussian-style weak priors for sediment, whole crust, and mantle.
+
         if "H_sed_center" in pri and "H_sed_sigma" in pri and float(pri["H_sed_sigma"]) > 0:
-            z = (pd["H_sed"] - float(pri["H_sed_center"])) / float(pri["H_sed_sigma"])
-            penalty += z**2
+            z_hsed = (pd["H_sed"] - float(pri["H_sed_center"])) / float(pri["H_sed_sigma"])
+            penalty += z_hsed**2
 
-        if "K_sed_center" in pri and "K_sed_sigma" in pri and float(pri["K_sed_sigma"]) > 0:
-            z = (pd["VpVs_sed"] - float(pri["K_sed_center"])) / float(pri["K_sed_sigma"])
-            penalty += z**2
-
-        # Whole-crust prior: travel-time-average Vp/Vs across sediments + crust to Moho.
         if "H_crust_center" in pri and "H_crust_sigma" in pri and float(pri["H_crust_sigma"]) > 0:
-            z = (pd["H_moho"] - float(pri["H_crust_center"])) / float(pri["H_crust_sigma"])
-            penalty += z**2
+            z_hmoho = (pd["H_moho"] - float(pri["H_crust_center"])) / float(pri["H_crust_sigma"])
+            penalty += z_hmoho**2
 
         if "K_crust_center" in pri and "K_crust_sigma" in pri and float(pri["K_crust_sigma"]) > 0:
-            k_crust = _crust_travel_time_avg_vpvs(params)
-            if np.isfinite(k_crust):
-                z = (k_crust - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
-                penalty += z**2
+            k = _crust_travel_time_avg_vpvs(params)
+            if np.isfinite(k):
+                z_k = (k - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
+                penalty += beta * (z_k**2)
 
-        # Mantle constraints.
-        for name, center_key, sigma_key in [
-            ("Vs_mantle", "Vs_mantle_center", "Vs_mantle_sigma"),
-            ("VpVs_mantle", "VpVs_mantle_center", "VpVs_mantle_sigma"),
-        ]:
-            if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
-                z = (pd[name] - float(pri[center_key])) / float(pri[sigma_key])
-                penalty += z**2
-
-        return float(self.cfg["weights"].get("prior", 1.0)) * penalty
+        return alpha * penalty
 
     def evaluate_single(self, params: np.ndarray) -> tuple[float, list[np.ndarray]]:
         valid, hard_penalty = validate_params(params, self.cfg)

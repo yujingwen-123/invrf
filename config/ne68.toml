@@ -66,6 +66,7 @@ mode = "chi_square"  # chi_square uses bootstrap sigma per p-bin sample
 
 [weights]
 prior = 1.0  # Gaussian prior penalty weight
+k = 0.5      # beta for whole-crust Vp/Vs prior term
 
 [na]
 n_initial = 5000
