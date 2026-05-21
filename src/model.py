@@ -179,7 +179,18 @@ def model_to_depth_grid(params: np.ndarray, cfg: Dict, z: np.ndarray) -> np.ndar
     vm = params_to_velocity_model(params, cfg)
     g = vm.geometry
     bounds = np.array([0.0, g.h_sed1, g.h_sed1 + g.h_sed2, g.h_sed1 + g.h_sed2 + g.h_uc, g.H_moho, np.inf])
-    vs = vm.vs_km_s
+    # For plotting, default to parameterized sediment Vs (Vs_sed1/Vs_sed2) rather than
+    # the empirical Vp->Vs converted values, which can become unrealistically low in
+    # very shallow layers and make posterior-density figures look pathological.
+    use_empirical_sed = bool(cfg.get("model", {}).get("plot_use_empirical_sed", False))
+    if use_empirical_sed:
+        vs = vm.vs_km_s
+    else:
+        p = params_to_dict(params)
+        vs = np.array(
+            [p["Vs_sed1"], p["Vs_sed2"], p["Vs_uc"], p["Vs_lc"], p["Vs_mantle"]],
+            dtype=float,
+        )
     out = np.empty_like(z, dtype=float)
     for i in range(len(vs)):
         mask = (z >= bounds[i]) & (z < bounds[i + 1])
