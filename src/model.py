@@ -67,6 +67,20 @@ def vp2rho_brocher(vp: np.ndarray) -> np.ndarray:
     )
 
 
+
+
+def v2v(vp: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Empirical relationship in sediment layer to derive Vs and density from Vp."""
+    rho = (
+        1.6612 * vp
+        - 0.4721 * vp**2
+        + 0.0671 * vp**3
+        - 0.0043 * vp**4
+        + 0.000106 * vp**5
+    )
+    vs = 0.7858 - 1.2344 * vp + 0.7949 * vp**2 - 0.1238 * vp**3 + 0.0064 * vp**4
+    return vs, rho
+
 def params_to_geometry(params: np.ndarray, cfg: Dict) -> LayerGeometry:
     p = params_to_dict(params)
     H_sed = p["H_sed"]
@@ -145,7 +159,13 @@ def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
         dtype=float,
     )
     vp = vs * vpvs
+
+    # Use empirical sediment relationship for the first two sediment layers.
+    sed_vs, sed_rho = v2v(vp[:2])
+    vs = vs.copy()
     rho = vp2rho_brocher(vp)
+    vs[:2] = sed_vs
+    rho[:2] = sed_rho
     return VelocityModel(
         interfaces_km=interfaces,
         vp_km_s=vp,

@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
-from .misfit import combined_misfit
-from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, validate_params
+from .misfit import chi_square_misfit
+from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, params_to_geometry, validate_params
 from .pbin import PBin
 
 
@@ -33,6 +33,21 @@ class SearchResult:
     misfits: np.ndarray
     lower_bounds: np.ndarray
     upper_bounds: np.ndarray
+
+
+def _crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
+    pd = params_to_dict(params)
+    geom = params_to_geometry(params, cfg={})
+    h = np.array([geom.h_sed1, geom.h_sed2, geom.h_uc, geom.h_lc], dtype=float)
+    vs = np.array([pd["Vs_sed1"], pd["Vs_sed2"], pd["Vs_uc"], pd["Vs_lc"]], dtype=float)
+    vpvs = np.array([pd["VpVs_sed"], pd["VpVs_sed"], pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
+    vp = vs * vpvs
+    # travel-time-average crustal Vp/Vs = Ts/Tp
+    tp = np.sum(h / vp)
+    ts = np.sum(h / vs)
+    if tp <= 0 or ts <= 0 or (not np.isfinite(tp)) or (not np.isfinite(ts)):
+        return float("nan")
+    return float(ts / tp)
 
 
 class JointRFObjective:
@@ -73,30 +88,48 @@ class JointRFObjective:
         pri = self.cfg["priors"]
         pd = params_to_dict(params)
         penalty = 0.0
-        # Gaussian-style weak priors, expressed as squared z-score.
+        # Gaussian-style weak priors for sediment, whole crust, and mantle.
+        if "H_sed_center" in pri and "H_sed_sigma" in pri and float(pri["H_sed_sigma"]) > 0:
+            z = (pd["H_sed"] - float(pri["H_sed_center"])) / float(pri["H_sed_sigma"])
+            penalty += z**2
+
+        if "K_sed_center" in pri and "K_sed_sigma" in pri and float(pri["K_sed_sigma"]) > 0:
+            z = (pd["VpVs_sed"] - float(pri["K_sed_center"])) / float(pri["K_sed_sigma"])
+            penalty += z**2
+
+        # Whole-crust prior: travel-time-average Vp/Vs across sediments + crust to Moho.
+        if "H_crust_center" in pri and "H_crust_sigma" in pri and float(pri["H_crust_sigma"]) > 0:
+            z = (pd["H_moho"] - float(pri["H_crust_center"])) / float(pri["H_crust_sigma"])
+            penalty += z**2
+
+        if "K_crust_center" in pri and "K_crust_sigma" in pri and float(pri["K_crust_sigma"]) > 0:
+            k_crust = _crust_travel_time_avg_vpvs(params)
+            if np.isfinite(k_crust):
+                z = (k_crust - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
+                penalty += z**2
+
+        # Mantle constraints.
         for name, center_key, sigma_key in [
-            ("H_sed", "H_sed_center", "H_sed_sigma"),
             ("Vs_mantle", "Vs_mantle_center", "Vs_mantle_sigma"),
             ("VpVs_mantle", "VpVs_mantle_center", "VpVs_mantle_sigma"),
         ]:
             if center_key in pri and sigma_key in pri and float(pri[sigma_key]) > 0:
                 z = (pd[name] - float(pri[center_key])) / float(pri[sigma_key])
                 penalty += z**2
+
         return float(self.cfg["weights"].get("prior", 1.0)) * penalty
 
     def evaluate_single(self, params: np.ndarray) -> tuple[float, list[np.ndarray]]:
         valid, hard_penalty = validate_params(params, self.cfg)
         if not valid:
             return float(hard_penalty), []
-        w_cc = float(self.cfg["weights"].get("cc", 0.6))
-        w_nrmse = float(self.cfg["weights"].get("nrmse", 0.4))
         total = self.prior_penalty(params) + float(hard_penalty)
         synthetics: list[np.ndarray] = []
         try:
             for b in self.bins:
                 syn = synthetic_rf_for_rayp(params, b.p_center, self.time, self.cfg)
                 synthetics.append(syn)
-                total += combined_misfit(b.stack, syn, w_cc, w_nrmse) * float(b.n_events)
+                total += chi_square_misfit(b.stack, syn, b.std) * float(b.n_events)
         except Exception:
             return 1.0e9, []
         return float(total), synthetics

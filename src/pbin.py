@@ -20,6 +20,30 @@ class PBin:
     event_ids: list[str]
 
 
+def _bootstrap_stack_std(
+    traces: np.ndarray,
+    stack_method: str,
+    n_bootstrap: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    n_events, n_samples = traces.shape
+    if n_events <= 1:
+        return np.zeros(n_samples, dtype=float)
+
+    boot = np.empty((n_bootstrap, n_samples), dtype=float)
+    for i in range(n_bootstrap):
+        idx = rng.integers(0, n_events, size=n_events)
+        sampled = traces[idx]
+        if stack_method == "median":
+            boot[i] = np.nanmedian(sampled, axis=0)
+        else:
+            boot[i] = np.nanmean(sampled, axis=0)
+
+    std = np.nanstd(boot, axis=0, ddof=1)
+    std = np.where(np.isfinite(std), std, 0.0)
+    return std
+
+
 def build_pbin_stacks(loaded: List[LoadedRF], cfg: Dict) -> List[PBin]:
     if not loaded:
         return []
@@ -30,6 +54,9 @@ def build_pbin_stacks(loaded: List[LoadedRF], cfg: Dict) -> List[PBin]:
     stack_method = str(cfg["pbin"].get("stack_method", "mean")).lower()
     pmin = np.min(p)
     pmax = np.max(p)
+    n_bootstrap = int(cfg["pbin"].get("bootstrap_n", 400))
+    bootstrap_seed = int(cfg["pbin"].get("bootstrap_seed", 20260521))
+    rng = np.random.default_rng(bootstrap_seed)
 
     bins: List[PBin] = []
     left = pmin
@@ -42,7 +69,7 @@ def build_pbin_stacks(loaded: List[LoadedRF], cfg: Dict) -> List[PBin]:
                 stack = np.nanmedian(traces, axis=0)
             else:
                 stack = np.nanmean(traces, axis=0)
-            std = np.nanstd(traces, axis=0, ddof=1) if idx.size > 1 else np.zeros(traces.shape[1])
+            std = _bootstrap_stack_std(traces, stack_method, n_bootstrap=max(20, n_bootstrap), rng=rng)
             bins.append(
                 PBin(
                     p_left=float(left),

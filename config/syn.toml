@@ -32,6 +32,8 @@ width = 0.008
 step = 0.005
 min_events = 10
 stack_method = "mean"
+bootstrap_n = 400
+bootstrap_seed = 20260521
 
 [model]
 mantle_extra_depth = 80.0
@@ -49,9 +51,7 @@ VpVs_mantle_center = 1.78
 VpVs_mantle_sigma = 0.05
 
 [weights]
-cc = 0.2
-nrmse = 0.8
-prior = 1.0
+prior = 1.0  # Gaussian prior penalty weight
 
 [na]
 n_initial = 5000
