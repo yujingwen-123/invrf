@@ -40,9 +40,19 @@ def _load_samples(samples_path: Path) -> pd.DataFrame:
     else:
         raise ValueError(f"Unsupported sample file type: {samples_path.suffix}")
 
-    # keep only numeric columns and drop obvious non-parameter cols
+    # Prefer strict parameter-name selection to avoid accidental column-order or
+    # extra-column contamination in appraisal CSVs.
+    try:
+        from src.model import PARAMETER_NAMES
+    except Exception:
+        PARAMETER_NAMES = []
+
+    if PARAMETER_NAMES and all(name in df.columns for name in PARAMETER_NAMES):
+        return df.loc[:, PARAMETER_NAMES].astype(float)
+
+    # Fallback for legacy/unnamed arrays.
     num = df.select_dtypes(include=[np.number]).copy()
-    drop_cols = [c for c in num.columns if c.lower() in {"misfit", "objective", "log_ppd"}]
+    drop_cols = [c for c in num.columns if str(c).lower() in {"misfit", "objective", "log_ppd"}]
     if drop_cols:
         num = num.drop(columns=drop_cols)
     if num.shape[1] == 0:
