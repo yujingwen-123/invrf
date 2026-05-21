@@ -22,12 +22,24 @@ def auto_find(root: Path, candidates: list[str]) -> Path | None:
 
 def load_numeric_samples(samples_path: Path) -> pd.DataFrame:
     df = pd.read_csv(samples_path)
+    # Prefer strict parameter-name selection to avoid accidental column-order bugs
+    # when CSV contains extra numeric fields (e.g., rank/iteration/temperature/etc.).
+    from src.model import PARAMETER_NAMES
+
+    if all(name in df.columns for name in PARAMETER_NAMES):
+        return df.loc[:, PARAMETER_NAMES].astype(float)
+
     num = df.select_dtypes(include=[np.number]).copy()
     drop_cols = [c for c in num.columns if c.lower() in {"misfit", "objective", "log_ppd"}]
     if drop_cols:
         num = num.drop(columns=drop_cols)
     if num.shape[1] == 0:
         raise RuntimeError(f"No numeric parameter columns in {samples_path}")
+    if num.shape[1] != len(PARAMETER_NAMES):
+        raise RuntimeError(
+            f"Cannot safely infer parameter order from {samples_path}: "
+            f"found {num.shape[1]} numeric columns, expected {len(PARAMETER_NAMES)}."
+        )
     return num
 
 
