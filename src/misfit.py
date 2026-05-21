@@ -38,3 +38,11 @@ def nrmse_misfit(obs: np.ndarray, syn: np.ndarray) -> float:
 
 def combined_misfit(obs: np.ndarray, syn: np.ndarray, w_cc: float, w_nrmse: float) -> float:
     return float(w_cc) * cc_misfit(obs, syn) + float(w_nrmse) * nrmse_misfit(obs, syn)
+
+
+def chi_square_misfit(obs: np.ndarray, syn: np.ndarray, sigma: np.ndarray, sigma_floor: float = 1.0e-3) -> float:
+    o, s = _safe_arrays(obs, syn)
+    sig = np.asarray(sigma, dtype=float)[np.isfinite(obs) & np.isfinite(syn)]
+    sig = np.where(np.isfinite(sig) & (sig > sigma_floor), sig, sigma_floor)
+    r = (o - s) / sig
+    return float(np.mean(r**2))
