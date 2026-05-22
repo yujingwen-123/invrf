@@ -35,7 +35,7 @@ class SearchResult:
     upper_bounds: np.ndarray
 
 
-def _crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
+def _whole_crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
     pd = params_to_dict(params)
     geom = params_to_geometry(params, cfg={})
     h = np.array([geom.h_sed1, geom.h_sed2, geom.h_uc, geom.h_lc], dtype=float)
@@ -43,7 +43,7 @@ def _crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
     vp = np.empty_like(vs)
     vp[:2] = vs2vp_brocher(vs[:2])
     vp[2:] = vs[2:] * np.array([pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
-    # travel-time-average crustal Vp/Vs = Ts/Tp
+    # travel-time-average whole-crust Vp/Vs (sediment + crystalline crust) = Ts/Tp
     tp = np.sum(h / vp)
     ts = np.sum(h / vs)
     if tp <= 0 or ts <= 0 or (not np.isfinite(tp)) or (not np.isfinite(ts)):
@@ -107,7 +107,8 @@ class JointRFObjective:
             penalty += z_hmoho**2
 
         if "K_crust_center" in pri and "K_crust_sigma" in pri and float(pri["K_crust_sigma"]) > 0:
-            k = _crust_travel_time_avg_vpvs(params)
+            # NOTE: K_crust_center refers to whole-crust Vp/Vs prior (including sediments).
+            k = _whole_crust_travel_time_avg_vpvs(params)
             if np.isfinite(k):
                 z_k = (k - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
                 penalty += beta * (z_k**2)

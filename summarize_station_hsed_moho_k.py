@@ -114,8 +114,10 @@ def main() -> None:
         tP_full = tP_sed + tP_crust
 
         Ksed_tt = tS_sed / tP_sed
-        Kcrust_tt = tS_crust / tP_crust
-        Kfull_tt = tS_full / tP_full
+        # Crystalline crust only (upper+lower crust, excluding sediments).
+        Kcrystalline_tt = tS_crust / tP_crust
+        # Whole crust (sediment + crystalline crust), consistent with priors.K_crust_center.
+        Kcrust_tt = tS_full / tP_full
 
         rows.append({
             "station": stnm,
@@ -123,10 +125,12 @@ def main() -> None:
             "H_sed_std": _std_or_nan(H_sed),
             "H_moho_mean": float(np.mean(H_moho)),
             "H_moho_std": _std_or_nan(H_moho),
-            "K_full_mean": float(np.mean(Kfull_tt)),
-            "K_full_std": _std_or_nan(Kfull_tt),
+            "K_full_mean": float(np.mean(Kcrust_tt)),
+            "K_full_std": _std_or_nan(Kcrust_tt),
             "K_crust_mean": float(np.mean(Kcrust_tt)),
             "K_crust_std": _std_or_nan(Kcrust_tt),
+            "K_crystalline_mean": float(np.mean(Kcrystalline_tt)),
+            "K_crystalline_std": _std_or_nan(Kcrystalline_tt),
             "K_sed_mean": float(np.mean(Ksed_tt)),
             "K_sed_std": _std_or_nan(Ksed_tt),
         })
