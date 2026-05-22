@@ -9,7 +9,7 @@ import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
 from .misfit import chi_square_misfit
-from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, params_to_geometry, validate_params
+from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, params_to_geometry, validate_params, vs2vp_brocher
 from .pbin import PBin
 
 
@@ -40,8 +40,9 @@ def _crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
     geom = params_to_geometry(params, cfg={})
     h = np.array([geom.h_sed1, geom.h_sed2, geom.h_uc, geom.h_lc], dtype=float)
     vs = np.array([pd["Vs_sed1"], pd["Vs_sed2"], pd["Vs_uc"], pd["Vs_lc"]], dtype=float)
-    vpvs = np.array([pd["VpVs_sed"], pd["VpVs_sed"], pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
-    vp = vs * vpvs
+    vp = np.empty_like(vs)
+    vp[:2] = vs2vp_brocher(vs[:2])
+    vp[2:] = vs[2:] * np.array([pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
     # travel-time-average crustal Vp/Vs = Ts/Tp
     tp = np.sum(h / vp)
     ts = np.sum(h / vs)
