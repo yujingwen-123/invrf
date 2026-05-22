@@ -9,7 +9,7 @@ import pandas as pd
 
 from .forward import synthetic_rf_for_rayp
 from .misfit import chi_square_misfit
-from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, params_to_geometry, validate_params
+from .model import PARAMETER_NAMES, parameter_bounds, params_to_dict, params_to_geometry, validate_params, vs2vp_brocher
 from .pbin import PBin
 
 
@@ -35,14 +35,15 @@ class SearchResult:
     upper_bounds: np.ndarray
 
 
-def _crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
+def _whole_crust_travel_time_avg_vpvs(params: np.ndarray) -> float:
     pd = params_to_dict(params)
     geom = params_to_geometry(params, cfg={})
     h = np.array([geom.h_sed1, geom.h_sed2, geom.h_uc, geom.h_lc], dtype=float)
     vs = np.array([pd["Vs_sed1"], pd["Vs_sed2"], pd["Vs_uc"], pd["Vs_lc"]], dtype=float)
-    vpvs = np.array([pd["VpVs_sed"], pd["VpVs_sed"], pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
-    vp = vs * vpvs
-    # travel-time-average crustal Vp/Vs = Ts/Tp
+    vp = np.empty_like(vs)
+    vp[:2] = vs2vp_brocher(vs[:2])
+    vp[2:] = vs[2:] * np.array([pd["VpVs_uc"], pd["VpVs_lc"]], dtype=float)
+    # travel-time-average whole-crust Vp/Vs (sediment + crystalline crust) = Ts/Tp
     tp = np.sum(h / vp)
     ts = np.sum(h / vs)
     if tp <= 0 or ts <= 0 or (not np.isfinite(tp)) or (not np.isfinite(ts)):
@@ -106,7 +107,8 @@ class JointRFObjective:
             penalty += z_hmoho**2
 
         if "K_crust_center" in pri and "K_crust_sigma" in pri and float(pri["K_crust_sigma"]) > 0:
-            k = _crust_travel_time_avg_vpvs(params)
+            # NOTE: K_crust_center refers to whole-crust Vp/Vs prior (including sediments).
+            k = _whole_crust_travel_time_avg_vpvs(params)
             if np.isfinite(k):
                 z_k = (k - float(pri["K_crust_center"])) / float(pri["K_crust_sigma"])
                 penalty += beta * (z_k**2)
