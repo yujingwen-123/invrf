@@ -143,7 +143,7 @@ def plot_best_fit_bins(bins: List[PBin], syns: List[np.ndarray], time: np.ndarra
 
 def _tradeoff_pairs() -> list[tuple[str, str]]:
     return [
-        ("H_sed", "VpVs_sed"),
+        ("H_sed", "Vs_sed2"),
         ("H_moho", "VpVs_uc"),
         ("Vs_lc", "Vs_mantle"),
         ("VpVs_lc", "VpVs_mantle"),

@@ -11,7 +11,6 @@ PARAMETER_NAMES = [
     "sed_ratio1",
     "Vs_sed1",
     "Vs_sed2",
-    "VpVs_sed",
     "H_uc",
     "Vs_uc",
     "VpVs_uc",
@@ -67,6 +66,11 @@ def vp2rho_brocher(vp: np.ndarray) -> np.ndarray:
     )
 
 
+def vs2vp_brocher(vs: np.ndarray) -> np.ndarray:
+    """Empirical Vs->Vp relation (Brocher, 2005)."""
+    return 0.9409 + 2.0947 * vs - 0.8206 * vs**2 + 0.2683 * vs**3 - 0.0251 * vs**4
+
+
 
 
 def v2v(vp: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -115,9 +119,6 @@ def validate_params(params: np.ndarray, cfg: Dict) -> tuple[bool, float]:
     if not (p["Vs_sed1"] <= p["Vs_sed2"] <= p["Vs_uc"] <= p["Vs_lc"] <= p["Vs_mantle"]):
         return False, 1.0e6
 
-    if p["VpVs_sed"] < p["VpVs_uc"]:
-        penalty += 25.0 * (p["VpVs_uc"] - p["VpVs_sed"]) ** 2
-
     return True, penalty
 
 
@@ -148,24 +149,10 @@ def params_to_velocity_model(params: np.ndarray, cfg: Dict) -> VelocityModel:
         ],
         dtype=float,
     )
-    vpvs = np.array(
-        [
-            p["VpVs_sed"],
-            p["VpVs_sed"],
-            p["VpVs_uc"],
-            p["VpVs_lc"],
-            p["VpVs_mantle"],
-        ],
-        dtype=float,
-    )
-    vp = vs * vpvs
-
-    # Use empirical sediment relationship for the first two sediment layers.
-    sed_vs, sed_rho = v2v(vp[:2])
-    vs = vs.copy()
+    vp = np.empty_like(vs)
+    vp[:2] = vs2vp_brocher(vs[:2])
+    vp[2:] = vs[2:] * np.array([p["VpVs_uc"], p["VpVs_lc"], p["VpVs_mantle"]], dtype=float)
     rho = vp2rho_brocher(vp)
-    vs[:2] = sed_vs
-    rho[:2] = sed_rho
     return VelocityModel(
         interfaces_km=interfaces,
         vp_km_s=vp,
